@@ -54,6 +54,7 @@ class JobConfig:
     translation: str = "none"  # none | fr | en
     font_size: int | None = None
     subtitle_anim: str = "fade"  # none | fade | rise | soft | blur
+    long_verse_mode: str = "pages"  # pages | block
     watermark_mode: str = "none"  # none | logo | text
     watermark_text: str = ""  # TikTok handle when mode=text
     bg_paths: list[str] | None = None  # multi-fonds montage
@@ -150,6 +151,8 @@ def valider_config(cfg: JobConfig) -> None:
         raise ValueError("Style de sous-titres invalide.")
     if cfg.subtitle_anim not in ("none", "fade", "rise", "soft", "blur"):
         raise ValueError("Animation de sous-titres invalide.")
+    if cfg.long_verse_mode not in ("pages", "block"):
+        raise ValueError("Mode versets longs invalide (pages/block).")
     if cfg.video_style not in VIDEO_STYLES:
         raise ValueError("Style video invalide.")
     if cfg.translation not in TRADUCTIONS:
@@ -371,6 +374,7 @@ def construire_srt_et_audio(
     translation_lang: str = "none",
     subtitle_style: str = "classic",
     subtitle_anim: str = "fade",
+    long_verse_mode: str = "pages",
 ) -> tuple[float, int]:
     chemin_liste = dossier_tmp / "liste_concat.txt"
     with chemin_liste.open("w", encoding="utf-8") as f:
@@ -424,8 +428,16 @@ def construire_srt_et_audio(
                 max_len = max(max_len, len(tr))
                 tr_lines = wrap_to_lines(tr, lat_w)
 
-        # Pages bilingues : toujours arabe en haut, traduction en bas
-        if tr_lines:
+        # Pages bilingues (AR haut / TR bas) OU un seul bloc complet
+        mode = (long_verse_mode or "pages").strip().lower()
+        if mode == "block":
+            page: list[str] = list(ar_lines)
+            if tr_lines:
+                if page:
+                    page.append("")
+                page.extend(tr_lines)
+            pages = [page] if page else [[]]
+        elif tr_lines:
             pages = _paginate_bilingual(
                 ar_lines,
                 tr_lines,
@@ -799,6 +811,7 @@ def generer_video(
         translation_lang=cfg.translation,
         subtitle_style=cfg.subtitle_style,
         subtitle_anim=cfg.subtitle_anim,
+        long_verse_mode=cfg.long_verse_mode,
     )
 
     progress("background", 70, "Preparation du fond...")
@@ -845,6 +858,7 @@ def generer_video(
         "ayah_to": cfg.ayah_to,
         "subtitle_style": cfg.subtitle_style,
         "subtitle_anim": cfg.subtitle_anim,
+        "long_verse_mode": cfg.long_verse_mode,
         "video_style": cfg.video_style,
         "include_basmala": cfg.include_basmala,
         "translation": cfg.translation,

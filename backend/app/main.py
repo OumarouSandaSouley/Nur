@@ -19,6 +19,7 @@ from .backgrounds import (
     search_pexels_videos,
 )
 from .data import liste_reciteurs, liste_sourates
+from .edit import concat_outputs, trim_output
 from .jobs import manager
 from .pipeline import OUTPUTS, JobConfig, ROOT, estimer_duree, valider_config
 from .styles import liste_anims_sous_titres, liste_styles_sous_titres, liste_styles_video
@@ -154,6 +155,7 @@ async def create_job(
     ayah_to: int = Form(...),
     subtitle_style: str = Form("classic"),
     subtitle_anim: str = Form("fade"),
+    long_verse_mode: str = Form("pages"),
     video_style: str = Form("clean"),
     include_basmala: str = Form("true"),
     translation: str = Form("none"),
@@ -175,6 +177,9 @@ async def create_job(
     anim = (subtitle_anim or "fade").strip().lower()
     if anim not in ("none", "fade", "rise", "soft", "blur"):
         raise HTTPException(400, "Animation invalide.")
+    lvm = (long_verse_mode or "pages").strip().lower()
+    if lvm not in ("pages", "block"):
+        raise HTTPException(400, "Mode versets longs invalide (pages/block).")
     wm = (watermark_mode or "none").strip().lower()
     if wm not in ("none", "logo", "text"):
         raise HTTPException(400, "Watermark invalide (none/logo/text).")
@@ -225,6 +230,7 @@ async def create_job(
         ayah_to=ayah_to,
         subtitle_style=subtitle_style,
         subtitle_anim=anim,
+        long_verse_mode=lvm,
         video_style=video_style,
         bg_path=bg_path,
         bg_paths=bg_paths,
@@ -312,6 +318,36 @@ def history_delete(filename: str):
     (OUTPUTS / f"{stem}.json").unlink(missing_ok=True)
     (OUTPUTS / f"{stem}.srt").unlink(missing_ok=True)
     return {"ok": True}
+
+
+@app.post("/api/edit/trim")
+async def api_edit_trim(
+    filename: str = Form(...),
+    start: float = Form(0),
+    end: float | None = Form(None),
+):
+    try:
+        return trim_output(filename, start=start, end=end)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc)) from exc
+
+
+@app.post("/api/edit/concat")
+async def api_edit_concat(filenames: str = Form(...)):
+    try:
+        names = json.loads(filenames)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(400, "filenames JSON invalide.") from exc
+    if not isinstance(names, list):
+        raise HTTPException(400, "filenames doit etre une liste.")
+    try:
+        return concat_outputs([str(n) for n in names])
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc)) from exc
 
 
 def _safe_output(filename: str) -> Path:

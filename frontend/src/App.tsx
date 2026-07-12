@@ -12,7 +12,7 @@ import {
   type VideoStyle,
 } from './api'
 
-const STEPS = ['Contenu', 'Sous-titres', 'Vidéo', 'Générer', 'Historique'] as const
+const STEPS = ['Contenu', 'Sous-titres', 'Vidéo', 'Générer', 'Éditer'] as const
 const SAMPLE_AR = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ'
 
 export default function App() {
@@ -35,6 +35,7 @@ export default function App() {
   const [translation, setTranslation] = useState<'none' | 'fr' | 'en'>('none')
   const [subtitleStyle, setSubtitleStyle] = useState('classic')
   const [subtitleAnim, setSubtitleAnim] = useState('fade')
+  const [longVerseMode, setLongVerseMode] = useState<'pages' | 'block'>('pages')
   const [fontSize, setFontSize] = useState(22)
   const [videoStyle, setVideoStyle] = useState('clean')
   const [watermarkMode, setWatermarkMode] = useState<'none' | 'logo' | 'text'>('none')
@@ -61,6 +62,11 @@ export default function App() {
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [audioPreview, setAudioPreview] = useState<HTMLAudioElement | null>(null)
   const [audioPlaying, setAudioPlaying] = useState(false)
+  const [editTarget, setEditTarget] = useState('')
+  const [editStart, setEditStart] = useState(0)
+  const [editEnd, setEditEnd] = useState(0)
+  const [editSelected, setEditSelected] = useState<string[]>([])
+  const [editBusy, setEditBusy] = useState(false)
 
   const currentSurah = useMemo(
     () => surahs.find((s) => s.number === surah),
@@ -175,6 +181,7 @@ export default function App() {
       form.append('ayah_to', String(ayahTo))
       form.append('subtitle_style', subtitleStyle)
       form.append('subtitle_anim', subtitleAnim)
+      form.append('long_verse_mode', longVerseMode)
       form.append('font_size', String(fontSize))
       form.append('video_style', videoStyle)
       form.append('include_basmala', String(includeBasmala))
@@ -293,7 +300,6 @@ export default function App() {
           {step === 0 && (
             <section className="panel step-panel">
               <h2>Contenu</h2>
-              <p className="hint">Récitateur, sourate et intervalle de versets.</p>
               <div className="field-grid">
                 <label className="field">
                   Récitateur
@@ -409,9 +415,6 @@ export default function App() {
           {step === 1 && (
             <section className="panel step-panel">
               <h2>Sous-titres</h2>
-              <p className="hint">
-                Les versets longs s&apos;affichent page par page — rien n&apos;est tronque.
-              </p>
               <div className="preset-grid compact">
                 {subStyles.map((s) => (
                   <button
@@ -459,6 +462,25 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              <p className="field-label" style={{ marginTop: '0.85rem' }}>
+                Versets longs
+              </p>
+              <div className="anim-grid">
+                <button
+                  type="button"
+                  className={`anim-chip ${longVerseMode === 'pages' ? 'selected' : ''}`}
+                  onClick={() => setLongVerseMode('pages')}
+                >
+                  Pages
+                </button>
+                <button
+                  type="button"
+                  className={`anim-chip ${longVerseMode === 'block' ? 'selected' : ''}`}
+                  onClick={() => setLongVerseMode('block')}
+                >
+                  Bloc complet
+                </button>
+              </div>
               <div className="nav-row">
                 <button type="button" className="btn btn-ghost" onClick={() => setStep(0)}>
                   Retour
@@ -473,7 +495,6 @@ export default function App() {
           {step === 2 && (
             <section className="panel step-panel">
               <h2>Vidéo & fond</h2>
-              <p className="hint">Style de rendu, puis source du fond.</p>
 
               <div className="preset-grid compact">
                 {videoStyles.map((s) => (
@@ -599,7 +620,6 @@ export default function App() {
                         }
                       }}
                     />
-                    <p className="hint tight">Un ou plusieurs fichiers — max 6 dans le montage.</p>
                   </div>
                 )}
 
@@ -609,7 +629,6 @@ export default function App() {
                       <div className="montage-bar">
                         <p className="field-label">
                           Montage ({montageIds.length}/6)
-                          {montageIds.length > 1 ? ' · enchainement' : ''}
                         </p>
                         <div className="montage-list">
                           {montageIds.map((id, i) => {
@@ -651,12 +670,6 @@ export default function App() {
                             )
                           })}
                         </div>
-                        {montageIds.length > 1 && (
-                          <p className="hint tight">
-                            Chaque fond prend une part egale de la duree
-                            {montageIds.length === 2 ? ' (fondu croise).' : '.'}
-                          </p>
-                        )}
                       </div>
                     )}
                     <div className="lib-grid">
@@ -698,7 +711,7 @@ export default function App() {
                       ))}
                     </div>
                     {!uploads.length && !library.length && (
-                      <p className="hint tight">Aucune video en bibliotheque.</p>
+                      <p className="empty-line">Aucune video</p>
                     )}
                   </>
                 )}
@@ -718,7 +731,6 @@ export default function App() {
           {step === 3 && (
             <section className="panel step-panel">
               <h2>Générer</h2>
-              <p className="hint">Vérifie puis lance — l’aperçu s’affiche à droite.</p>
               <ul className="summary">
                 <li>
                   <span>Récitateur</span>
@@ -746,6 +758,10 @@ export default function App() {
                   </span>
                 </li>
                 <li>
+                  <span>Longs versets</span>
+                  <span>{longVerseMode === 'block' ? 'Bloc complet' : 'Pages'}</span>
+                </li>
+                <li>
                   <span>Style</span>
                   <span>{selectedVid?.name}</span>
                 </li>
@@ -768,7 +784,7 @@ export default function App() {
               </ul>
 
               <div className="watermark-box">
-                <p className="field-label">Watermark (optionnel)</p>
+                <p className="field-label">Watermark</p>
                 <div className="wm-tabs">
                   {(
                     [
@@ -798,9 +814,6 @@ export default function App() {
                       maxLength={40}
                     />
                   </label>
-                )}
-                {watermarkMode === 'logo' && (
-                  <p className="hint tight">Petit logo Nur en haut a droite.</p>
                 )}
               </div>
 
@@ -848,60 +861,196 @@ export default function App() {
 
           {step === 4 && (
             <section className="panel step-panel">
-              <h2>Historique</h2>
-              <p className="hint">Videos generees localement — rejouer, telecharger ou supprimer.</p>
-              <div className="history-list">
-                {history.length === 0 && (
-                  <p className="hint tight">Aucune video pour l&apos;instant.</p>
-                )}
-                {history.map((h) => (
-                  <div key={h.id} className="history-item">
-                    <div className="history-meta">
-                      <strong title={h.name}>{h.name}</strong>
-                      <span>
-                        {(h.size / (1024 * 1024)).toFixed(1)} Mo
-                        {typeof h.meta.duration_seconds === 'number'
-                          ? ` · ${Math.round(h.meta.duration_seconds as number)}s`
-                          : ''}
-                      </span>
-                    </div>
-                    <div className="history-actions">
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        onClick={() => {
-                          setPreviewSrc(h.preview_url)
-                          setJob(null)
-                        }}
-                      >
-                        Voir
-                      </button>
-                      <a className="btn btn-primary" href={h.download_url} download>
-                        Télécharger
-                      </a>
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        onClick={async () => {
-                          await api.deleteHistory(h.id)
-                          if (previewSrc === h.preview_url) setPreviewSrc(null)
-                          refreshHistory()
-                        }}
-                      >
-                        Supprimer
-                      </button>
-                    </div>
-                  </div>
-                ))}
+              <h2>Éditer</h2>
+
+              <div className="edit-tools">
+                <label className="field">
+                  Vidéo
+                  <select
+                    value={editTarget}
+                    onChange={(e) => {
+                      const name = e.target.value
+                      setEditTarget(name)
+                      const item = history.find((h) => h.id === name)
+                      const dur =
+                        typeof item?.meta.duration_seconds === 'number'
+                          ? (item.meta.duration_seconds as number)
+                          : 0
+                      setEditStart(0)
+                      setEditEnd(dur > 0 ? Math.round(dur * 10) / 10 : 0)
+                      if (item) {
+                        setPreviewSrc(item.preview_url)
+                        setJob(null)
+                      }
+                    }}
+                  >
+                    <option value="">Choisir…</option>
+                    {history.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="field-grid two">
+                  <label className="field">
+                    Début (s)
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      value={editStart}
+                      onChange={(e) => setEditStart(Math.max(0, Number(e.target.value) || 0))}
+                    />
+                  </label>
+                  <label className="field">
+                    Fin (s)
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      value={editEnd}
+                      onChange={(e) => setEditEnd(Math.max(0, Number(e.target.value) || 0))}
+                    />
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!editTarget || editBusy}
+                  onClick={async () => {
+                    setEditBusy(true)
+                    setError(null)
+                    try {
+                      const res = await api.trimVideo(
+                        editTarget,
+                        editStart,
+                        editEnd > 0 ? editEnd : null,
+                      )
+                      await refreshHistory()
+                      setEditTarget(res.name)
+                      setPreviewSrc(res.preview_url)
+                      setEditStart(0)
+                      setEditEnd(res.duration)
+                    } catch (e: unknown) {
+                      setError(e instanceof Error ? e.message : 'Trim échoué')
+                    } finally {
+                      setEditBusy(false)
+                    }
+                  }}
+                >
+                  {editBusy ? 'Coupe…' : 'Couper'}
+                </button>
               </div>
+
+              <p className="field-label" style={{ marginTop: '0.85rem' }}>
+                Montage ({editSelected.length})
+              </p>
+              <div className="history-list">
+                {history.length === 0 && <p className="empty-line">Aucune vidéo</p>}
+                {history.map((h) => {
+                  const selected = editSelected.includes(h.id)
+                  return (
+                    <div
+                      key={h.id}
+                      className={`history-item ${selected ? 'selected' : ''}`}
+                    >
+                      <label className="history-check">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => {
+                            setEditSelected((prev) =>
+                              prev.includes(h.id)
+                                ? prev.filter((x) => x !== h.id)
+                                : prev.length >= 8
+                                  ? prev
+                                  : [...prev, h.id],
+                            )
+                          }}
+                        />
+                        <div className="history-meta">
+                          <strong title={h.name}>{h.name}</strong>
+                          <span>
+                            {(h.size / (1024 * 1024)).toFixed(1)} Mo
+                            {typeof h.meta.duration_seconds === 'number'
+                              ? ` · ${Math.round(h.meta.duration_seconds as number)}s`
+                              : ''}
+                          </span>
+                        </div>
+                      </label>
+                      <div className="history-actions">
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => {
+                            setPreviewSrc(h.preview_url)
+                            setEditTarget(h.id)
+                            const dur =
+                              typeof h.meta.duration_seconds === 'number'
+                                ? (h.meta.duration_seconds as number)
+                                : 0
+                            setEditStart(0)
+                            setEditEnd(dur)
+                            setJob(null)
+                          }}
+                        >
+                          Voir
+                        </button>
+                        <a className="btn btn-primary" href={h.download_url} download>
+                          DL
+                        </a>
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={async () => {
+                            await api.deleteHistory(h.id)
+                            if (previewSrc === h.preview_url) setPreviewSrc(null)
+                            if (editTarget === h.id) setEditTarget('')
+                            setEditSelected((prev) => prev.filter((x) => x !== h.id))
+                            refreshHistory()
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
               <div className="nav-row">
                 <button type="button" className="btn btn-ghost" onClick={() => setStep(3)}>
                   Retour
                 </button>
-                <button type="button" className="btn btn-primary" onClick={() => setStep(0)}>
-                  Nouvelle
+                <button
+                  type="button"
+                  className="btn btn-gold"
+                  disabled={editSelected.length < 2 || editBusy}
+                  onClick={async () => {
+                    setEditBusy(true)
+                    setError(null)
+                    try {
+                      const res = await api.concatVideos(editSelected)
+                      await refreshHistory()
+                      setEditTarget(res.name)
+                      setPreviewSrc(res.preview_url)
+                      setEditSelected([])
+                      setEditStart(0)
+                      setEditEnd(res.duration)
+                    } catch (e: unknown) {
+                      setError(e instanceof Error ? e.message : 'Montage échoué')
+                    } finally {
+                      setEditBusy(false)
+                    }
+                  }}
+                >
+                  {editBusy ? 'Montage…' : 'Assembler'}
                 </button>
               </div>
+              {error && <p className="error">{error}</p>}
             </section>
           )}
         </div>
@@ -986,13 +1135,29 @@ export default function App() {
                 </a>
                 <button
                   type="button"
+                  className="btn btn-primary"
+                  onClick={async () => {
+                    await refreshHistory()
+                    if (job.output_name) {
+                      setEditTarget(job.output_name)
+                      setPreviewSrc(api.previewUrl(job.id))
+                      setEditStart(0)
+                      setEditEnd(0)
+                    }
+                    setStep(4)
+                  }}
+                >
+                  Éditer
+                </button>
+                <button
+                  type="button"
                   className="btn btn-ghost"
                   onClick={() => {
                     setJob(null)
                     setStep(0)
                   }}
                 >
-                  Nouvelle vidéo
+                  Nouvelle
                 </button>
               </div>
             )}

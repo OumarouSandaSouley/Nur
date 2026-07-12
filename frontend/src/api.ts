@@ -137,6 +137,34 @@ export const api = {
     if (!res.ok) throw new Error(await res.text())
     return res.json()
   },
+  trimVideo: async (filename: string, start: number, end: number | null) => {
+    const form = new FormData()
+    form.append('filename', filename)
+    form.append('start', String(start))
+    if (end != null) form.append('end', String(end))
+    const res = await fetch('/api/edit/trim', { method: 'POST', body: form })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json() as Promise<{
+      ok: boolean
+      name: string
+      preview_url: string
+      download_url: string
+      duration: number
+    }>
+  },
+  concatVideos: async (filenames: string[]) => {
+    const form = new FormData()
+    form.append('filenames', JSON.stringify(filenames))
+    const res = await fetch('/api/edit/concat', { method: 'POST', body: form })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json() as Promise<{
+      ok: boolean
+      name: string
+      preview_url: string
+      download_url: string
+      duration: number
+    }>
+  },
   job: (id: string) => json<Job>(`/api/jobs/${id}`),
   createJob: async (form: FormData) => {
     const res = await fetch('/api/jobs', { method: 'POST', body: form })

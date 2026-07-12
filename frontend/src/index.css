@@ -660,13 +660,15 @@ label.field input,
 
 .preview-actions {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 0.4rem;
   margin-top: 0.6rem;
+  justify-content: center;
 }
 
 .preview-actions .btn {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 @media (max-width: 860px) {
@@ -824,4 +826,32 @@ label.field input,
   background: var(--sage-deep);
   border-color: var(--sage-deep);
   color: #f3faf6;
+}
+
+.edit-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 0.5rem;
+}
+
+.history-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.history-item.selected {
+  outline: 1px solid var(--sage);
+  background: rgba(30, 64, 54, 0.06);
+}
+
+.empty-line {
+  margin: 0.35rem 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  opacity: 0.75;
 }
