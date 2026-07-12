@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   api,
   type Background,
+  type HistoryItem,
   type Job,
   type PexelsVideo,
   type Reciter,
@@ -10,7 +11,7 @@ import {
   type VideoStyle,
 } from './api'
 
-const STEPS = ['Contenu', 'Sous-titres', 'Vidéo', 'Générer'] as const
+const STEPS = ['Contenu', 'Sous-titres', 'Vidéo', 'Générer', 'Historique'] as const
 const SAMPLE_AR = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ'
 
 export default function App() {
@@ -48,6 +49,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [estimate, setEstimate] = useState<string | null>(null)
   const [estimatePrecise, setEstimatePrecise] = useState(false)
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null)
 
   const currentSurah = useMemo(
     () => surahs.find((s) => s.number === surah),
@@ -63,6 +66,18 @@ export default function App() {
   async function refreshBackgrounds() {
     setBackgrounds(await api.backgrounds())
   }
+
+  async function refreshHistory() {
+    try {
+      setHistory(await api.history())
+    } catch {
+      /* ignore */
+    }
+  }
+
+  useEffect(() => {
+    if (step === 4 || job?.status === 'done') refreshHistory()
+  }, [step, job?.status])
 
   useEffect(() => {
     Promise.all([api.reciters(), api.surahs(), api.styles(), api.backgrounds()])
@@ -178,6 +193,7 @@ export default function App() {
 
       const created = await api.createJob(form)
       setJob(created)
+      setPreviewSrc(null)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erreur de création')
     } finally {
@@ -590,17 +606,76 @@ export default function App() {
               {error && <p className="error">{error}</p>}
             </section>
           )}
+
+          {step === 4 && (
+            <section className="panel step-panel">
+              <h2>Historique</h2>
+              <p className="hint">Videos generees localement — rejouer, telecharger ou supprimer.</p>
+              <div className="history-list">
+                {history.length === 0 && (
+                  <p className="hint tight">Aucune video pour l&apos;instant.</p>
+                )}
+                {history.map((h) => (
+                  <div key={h.id} className="history-item">
+                    <div className="history-meta">
+                      <strong title={h.name}>{h.name}</strong>
+                      <span>
+                        {(h.size / (1024 * 1024)).toFixed(1)} Mo
+                        {typeof h.meta.duration_seconds === 'number'
+                          ? ` · ${Math.round(h.meta.duration_seconds as number)}s`
+                          : ''}
+                      </span>
+                    </div>
+                    <div className="history-actions">
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => {
+                          setPreviewSrc(h.preview_url)
+                          setJob(null)
+                        }}
+                      >
+                        Voir
+                      </button>
+                      <a className="btn btn-primary" href={h.download_url} download>
+                        DL
+                      </a>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={async () => {
+                          await api.deleteHistory(h.id)
+                          if (previewSrc === h.preview_url) setPreviewSrc(null)
+                          refreshHistory()
+                        }}
+                      >
+                        Del
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="nav-row">
+                <button type="button" className="btn btn-ghost" onClick={() => setStep(3)}>
+                  Retour
+                </button>
+                <button type="button" className="btn btn-primary" onClick={() => setStep(0)}>
+                  Nouvelle
+                </button>
+              </div>
+            </section>
+          )}
         </div>
 
         <aside className="col-right">
           <div className="preview-sticky">
             <h2 className="preview-title">Aperçu</h2>
             <div className="phone">
-              {job?.status === 'done' ? (
+              {previewSrc || job?.status === 'done' ? (
                 <video
-                  key={job.id}
+                  key={previewSrc || job?.id}
                   className="phone-video"
-                  src={api.previewUrl(job.id)}
+                  src={previewSrc || (job ? api.previewUrl(job.id) : undefined)}
                   controls
                   playsInline
                   autoPlay
@@ -636,7 +711,7 @@ export default function App() {
                       >
                         {SAMPLE_AR}
                       </p>
-                      <p className="phone-hint">Étape {step + 1}/4</p>
+                      <p className="phone-hint">Étape {step + 1}/{STEPS.length}</p>
                     </>
                   )}
                 </div>

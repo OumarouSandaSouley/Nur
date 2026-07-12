@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -18,7 +19,7 @@ from .backgrounds import (
 )
 from .data import liste_reciteurs, liste_sourates
 from .jobs import manager
-from .pipeline import JobConfig, ROOT, estimer_duree, valider_config
+from .pipeline import OUTPUTS, JobConfig, ROOT, estimer_duree, valider_config
 from .styles import liste_styles_sous_titres, liste_styles_video
 
 load_dotenv(ROOT / ".env")
@@ -174,6 +175,65 @@ def get_job(job_id: str):
     if not job:
         raise HTTPException(404, "Job introuvable.")
     return job.to_dict()
+
+
+@app.get("/api/history")
+def history():
+    OUTPUTS.mkdir(parents=True, exist_ok=True)
+    items = []
+    for p in sorted(OUTPUTS.glob("*.mp4"), key=lambda x: x.stat().st_mtime, reverse=True):
+        meta_path = OUTPUTS / f"{p.stem}.json"
+        meta = {}
+        if meta_path.is_file():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001
+                meta = {}
+        items.append(
+            {
+                "id": p.name,
+                "name": p.name,
+                "size": p.stat().st_size,
+                "mtime": p.stat().st_mtime,
+                "has_srt": (OUTPUTS / f"{p.stem}.srt").is_file(),
+                "meta": meta,
+                "preview_url": f"/api/history/{p.name}/preview",
+                "download_url": f"/api/history/{p.name}/download",
+            }
+        )
+    return items[:50]
+
+
+@app.get("/api/history/{filename}/preview")
+def history_preview(filename: str):
+    path = _safe_output(filename)
+    return FileResponse(path, media_type="video/mp4")
+
+
+@app.get("/api/history/{filename}/download")
+def history_download(filename: str):
+    path = _safe_output(filename)
+    return FileResponse(path, media_type="video/mp4", filename=filename)
+
+
+@app.delete("/api/history/{filename}")
+def history_delete(filename: str):
+    path = _safe_output(filename)
+    stem = path.stem
+    path.unlink(missing_ok=True)
+    (OUTPUTS / f"{stem}.json").unlink(missing_ok=True)
+    (OUTPUTS / f"{stem}.srt").unlink(missing_ok=True)
+    return {"ok": True}
+
+
+def _safe_output(filename: str) -> Path:
+    name = Path(filename).name
+    if not name.endswith(".mp4") or ".." in name:
+        raise HTTPException(400, "Nom de fichier invalide.")
+    path = OUTPUTS / name
+    if not path.is_file():
+        raise HTTPException(404, "Video introuvable.")
+    return path
 
 
 @app.get("/api/jobs/{job_id}/download")

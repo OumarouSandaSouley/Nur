@@ -44,6 +44,17 @@ export type PexelsSearch = {
   videos: PexelsVideo[]
 }
 
+export type HistoryItem = {
+  id: string
+  name: string
+  size: number
+  mtime: number
+  has_srt: boolean
+  meta: Record<string, unknown>
+  preview_url: string
+  download_url: string
+}
+
 export type Job = {
   id: string
   status: 'queued' | 'running' | 'done' | 'failed'
@@ -98,6 +109,14 @@ export const api = {
     const res = await fetch('/api/uploads', { method: 'POST', body: form })
     if (!res.ok) throw new Error(await res.text())
     return res.json() as Promise<Background>
+  },
+  history: () => json<HistoryItem[]>('/api/history'),
+  deleteHistory: async (filename: string) => {
+    const res = await fetch(`/api/history/${encodeURIComponent(filename)}`, {
+      method: 'DELETE',
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
   },
   job: (id: string) => json<Job>(`/api/jobs/${id}`),
   createJob: async (form: FormData) => {

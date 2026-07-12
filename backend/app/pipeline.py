@@ -595,5 +595,30 @@ def generer_video(
         max_text_len=max_text_len,
     )
 
+    # Sidecar for history / regenerate
+    meta = {
+        "reciter_id": cfg.reciter_id,
+        "surah": cfg.surah,
+        "ayah_from": cfg.ayah_from,
+        "ayah_to": cfg.ayah_to,
+        "subtitle_style": cfg.subtitle_style,
+        "video_style": cfg.video_style,
+        "include_basmala": cfg.include_basmala,
+        "translation": cfg.translation,
+        "output_name": nom,
+        "duration_seconds": round(duree, 1),
+    }
+    (OUTPUTS / f"{chemin_sortie.stem}.json").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    # Also keep SRT next to output for CapCut users
+    try:
+        (OUTPUTS / f"{chemin_sortie.stem}.srt").write_text(
+            chemin_srt.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+    except OSError:
+        pass
+
     progress("done", 100, "Video prete")
     return chemin_sortie
