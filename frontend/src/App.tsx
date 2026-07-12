@@ -40,6 +40,7 @@ export default function App() {
   const [bgMode, setBgMode] = useState<'url' | 'search' | 'upload' | 'library'>('search')
   const [backgroundUrl, setBackgroundUrl] = useState('')
   const [backgroundId, setBackgroundId] = useState('')
+  const [montageIds, setMontageIds] = useState<string[]>([])
   const [bgFile, setBgFile] = useState<File | null>(null)
   const [pexelsQuery, setPexelsQuery] = useState('nature')
   const [pexelsVideos, setPexelsVideos] = useState<PexelsVideo[]>([])
@@ -200,6 +201,10 @@ export default function App() {
         form.append('background_url', selectedPexelsUrl)
       } else if (bgFile) {
         form.append('background', bgFile)
+      } else if (montageIds.length > 1) {
+        form.append('background_ids', JSON.stringify(montageIds))
+      } else if (montageIds.length === 1) {
+        form.append('background_id', montageIds[0])
       } else if (backgroundId) {
         form.append('background_id', backgroundId)
       }
@@ -235,13 +240,37 @@ export default function App() {
   }
 
   const bgLabel =
-    bgMode === 'url' && backgroundUrl
-      ? 'URL personnalisée'
-      : bgMode === 'search' && selectedPexelsUrl
-        ? 'Pexels sélectionné'
-        : bgFile?.name ||
-          backgrounds.find((b) => b.id === backgroundId)?.name ||
-          'Fond uni auto'
+    montageIds.length > 1
+      ? `Montage · ${montageIds.length} fonds`
+      : bgMode === 'url' && backgroundUrl
+        ? 'URL personnalisée'
+        : bgMode === 'search' && selectedPexelsUrl
+          ? 'Pexels sélectionné'
+          : bgFile?.name ||
+            backgrounds.find((b) => b.id === (montageIds[0] || backgroundId))?.name ||
+            'Fond uni auto'
+
+  function toggleMontage(id: string) {
+    setMontageIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id)
+      if (prev.length >= 6) return prev
+      return [...prev, id]
+    })
+    setBackgroundId(id)
+    setBgFile(null)
+    setBackgroundUrl('')
+    setSelectedPexelsUrl('')
+  }
+
+  function moveMontage(index: number, dir: -1 | 1) {
+    setMontageIds((prev) => {
+      const next = [...prev]
+      const j = index + dir
+      if (j < 0 || j >= next.length) return prev
+      ;[next[index], next[j]] = [next[j], next[index]]
+      return next
+    })
+  }
 
   return (
     <div className="app shell">
@@ -537,25 +566,96 @@ export default function App() {
                     <input
                       type="file"
                       accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
-                      onChange={(e) => onUpload(e.target.files?.[0] ?? null)}
+                      multiple
+                      onChange={async (e) => {
+                        const files = Array.from(e.target.files || [])
+                        if (!files.length) return
+                        setError(null)
+                        try {
+                          const ids: string[] = []
+                          for (const f of files) {
+                            const saved = await api.upload(f)
+                            ids.push(saved.id)
+                          }
+                          await refreshBackgrounds()
+                          setMontageIds((prev) => [...prev, ...ids].slice(0, 6))
+                          setBackgroundId(ids[ids.length - 1] || '')
+                          setBgMode('library')
+                          setBgFile(null)
+                          setBackgroundUrl('')
+                          setSelectedPexelsUrl('')
+                        } catch (err: unknown) {
+                          setError(err instanceof Error ? err.message : 'Upload échoué')
+                        }
+                      }}
                     />
+                    <p className="hint tight">Un ou plusieurs fichiers — max 6 dans le montage.</p>
                   </div>
                 )}
 
                 {bgMode === 'library' && (
                   <>
+                    {montageIds.length > 0 && (
+                      <div className="montage-bar">
+                        <p className="field-label">
+                          Montage ({montageIds.length}/6)
+                          {montageIds.length > 1 ? ' · enchainement' : ''}
+                        </p>
+                        <div className="montage-list">
+                          {montageIds.map((id, i) => {
+                            const item = backgrounds.find((b) => b.id === id)
+                            return (
+                              <div key={`${id}-${i}`} className="montage-chip">
+                                <span>
+                                  {i + 1}. {item?.name || id}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost tiny"
+                                  disabled={i === 0}
+                                  onClick={() => moveMontage(i, -1)}
+                                  aria-label="Monter"
+                                >
+                                  ↑
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost tiny"
+                                  disabled={i === montageIds.length - 1}
+                                  onClick={() => moveMontage(i, 1)}
+                                  aria-label="Descendre"
+                                >
+                                  ↓
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost tiny"
+                                  onClick={() =>
+                                    setMontageIds((prev) => prev.filter((_, j) => j !== i))
+                                  }
+                                  aria-label="Retirer"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                        {montageIds.length > 1 && (
+                          <p className="hint tight">
+                            Chaque fond prend une part egale de la duree
+                            {montageIds.length === 2 ? ' (fondu croise).' : '.'}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <div className="lib-grid">
                       {[...uploads, ...library].map((b) => (
                         <button
                           key={b.id}
                           type="button"
-                          className={`lib-card ${backgroundId === b.id ? 'selected' : ''}`}
-                          onClick={() => {
-                            setBackgroundId(b.id)
-                            setBgFile(null)
-                            setBackgroundUrl('')
-                            setSelectedPexelsUrl('')
-                          }}
+                          className={`lib-card ${montageIds.includes(b.id) || backgroundId === b.id ? 'selected' : ''}`}
+                          onClick={() => toggleMontage(b.id)}
                         >
                           {b.thumb_url ? (
                             <img src={b.thumb_url} alt="" />
@@ -565,6 +665,9 @@ export default function App() {
                           <span>
                             {b.name}
                             {b.duration ? ` · ${Math.round(b.duration)}s` : ''}
+                            {montageIds.includes(b.id)
+                              ? ` · #${montageIds.indexOf(b.id) + 1}`
+                              : ''}
                           </span>
                           {b.source === 'upload' && (
                             <em
@@ -573,6 +676,7 @@ export default function App() {
                               onClick={async (e) => {
                                 e.stopPropagation()
                                 await api.deleteBackground(b.id)
+                                setMontageIds((prev) => prev.filter((x) => x !== b.id))
                                 if (backgroundId === b.id) setBackgroundId('')
                                 refreshBackgrounds()
                               }}

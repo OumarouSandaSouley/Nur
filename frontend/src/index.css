@@ -720,3 +720,39 @@ label.field input,
   gap: 0.35rem;
   margin-bottom: 0.5rem;
 }
+
+.montage-bar {
+  margin-bottom: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  background: rgba(30, 64, 54, 0.06);
+  border-radius: 10px;
+}
+
+.montage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.montage-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 8px;
+  padding: 0.25rem 0.4rem;
+}
+
+.montage-chip span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn.tiny {
+  padding: 0.15rem 0.4rem;
+  min-width: 0;
+  font-size: 0.75rem;
+}

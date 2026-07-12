@@ -404,15 +404,24 @@ def preparer_video_fond(
     duree_cible: float,
     chemin_sortie: Path,
     video_style: str,
+    chemins: list[str] | None = None,
 ) -> None:
-    if chemin_source and os.path.isfile(chemin_source):
+    paths = [p for p in (chemins or []) if p and os.path.isfile(p)]
+    if not paths and chemin_source and os.path.isfile(chemin_source):
+        paths = [chemin_source]
+
+    if len(paths) > 1:
+        _preparer_montage_fonds(paths, duree_cible, chemin_sortie, video_style)
+        return
+
+    if paths:
         cmd = [
             "ffmpeg",
             "-y",
             "-stream_loop",
             "-1",
             "-i",
-            chemin_source,
+            paths[0],
             "-t",
             str(duree_cible),
             "-vf",
@@ -455,7 +464,85 @@ def preparer_video_fond(
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        raise RuntimeError(f"Préparation fond échouée : {result.stderr[-800:]}")
+        raise RuntimeError(f"Preparation fond echouee : {result.stderr[-800:]}")
+
+
+def _preparer_montage_fonds(
+    paths: list[str],
+    duree_cible: float,
+    chemin_sortie: Path,
+    video_style: str,
+) -> None:
+    """Montage simple: parts egales; xfade si 2 clips, sinon concat."""
+    import shutil
+
+    n = len(paths)
+    use_xfade = n == 2
+    fade = 0.6 if use_xfade else 0.0
+    base = duree_cible / n
+    seg_dur = base + fade
+
+    work = chemin_sortie.parent / "montage_segs"
+    if work.exists():
+        shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+    segs: list[Path] = []
+    for i, src in enumerate(paths):
+        seg = work / f"seg_{i:02d}.mp4"
+        cmd = [
+            "ffmpeg", "-y",
+            "-stream_loop", "-1",
+            "-i", src,
+            "-t", f"{seg_dur:.3f}",
+            "-vf", _filtre_fond(video_style),
+            "-an", "-r", "30",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-pix_fmt", "yuv420p",
+            str(seg),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"Segment fond {i} echoue : {result.stderr[-600:]}")
+        segs.append(seg)
+
+    if use_xfade:
+        offset = max(0.0, seg_dur - fade)
+        fc = (
+            f"[0:v][1:v]xfade=transition=fade:duration={fade}:offset={offset:.3f},"
+            f"trim=duration={duree_cible:.3f},setpts=PTS-STARTPTS[v]"
+        )
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", str(segs[0]), "-i", str(segs[1]),
+            "-filter_complex", fc,
+            "-map", "[v]",
+            "-an", "-r", "30",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-t", f"{duree_cible:.3f}",
+            str(chemin_sortie),
+        ]
+    else:
+        liste = work / "concat.txt"
+        lines = []
+        for s in segs:
+            p = str(s.resolve()).replace("\\", "/")
+            # Escape single quotes for concat demuxer
+            p = p.replace("'", "'\\''")
+            lines.append(f"file '{p}'")
+        liste.write_text("\n".join(lines), encoding="utf-8")
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "concat", "-safe", "0",
+            "-i", str(liste),
+            "-t", f"{duree_cible:.3f}",
+            "-an", "-r", "30",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            str(chemin_sortie),
+        ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"Montage fonds echoue : {result.stderr[-800:]}")
 
 
 def _escape_subtitles_path(path: Path) -> str:
@@ -602,7 +689,13 @@ def generer_video(
     except UnicodeEncodeError:
         print("[job] preparer fond", flush=True)
     chemin_fond = job_dir / "fond_pret.mp4"
-    preparer_video_fond(bg_path, duree, chemin_fond, cfg.video_style)
+    preparer_video_fond(
+        bg_path,
+        duree,
+        chemin_fond,
+        cfg.video_style,
+        chemins=cfg.bg_paths,
+    )
 
     progress("encoding", 80, "Assemblage final (1-3 min)...")
     surah_name = SOURATES[cfg.surah - 1][0]
