@@ -194,7 +194,12 @@ VIDEO_STYLES: dict[str, dict] = {
 }
 
 
-def font_size_for_length(base: int, max_chars: int, has_translation: bool = False) -> int:
+def font_size_for_length(
+    base: int,
+    max_chars: int,
+    has_translation: bool = False,
+    line_count: int = 0,
+) -> int:
     """Taille adaptive pour rester dans le cadre vertical 1080px."""
     size = base
     if has_translation:
@@ -209,7 +214,16 @@ def font_size_for_length(base: int, max_chars: int, has_translation: bool = Fals
         size = min(size, 20)
     elif max_chars > 40:
         size = min(size, max(18, base - 2))
-    return max(13, size)
+    # Beaucoup de lignes (mode d'un coup) → reduire encore
+    if line_count > 20:
+        size = min(size, 12)
+    elif line_count > 14:
+        size = min(size, 13)
+    elif line_count > 10:
+        size = min(size, 14)
+    elif line_count > 7:
+        size = min(size, 16)
+    return max(11, size)
 
 
 def ass_force_style(
@@ -218,31 +232,37 @@ def ass_force_style(
     max_text_len: int = 0,
     font_size_override: int | None = None,
     has_translation: bool = False,
+    line_count: int = 0,
 ) -> str:
     style = SUBTITLE_STYLES.get(style_id, SUBTITLE_STYLES["classic"])
     base = int(font_size_override or style["font_size"])
-    size = font_size_for_length(base, max_text_len, has_translation=has_translation)
+    size = font_size_for_length(
+        base, max_text_len, has_translation=has_translation, line_count=line_count
+    )
     alignment = style["alignment"]
     margin_v = style["margin_v"]
-    # Long text: always bottom, more vertical room
-    if max_text_len > 50 and alignment == 5:
+    # Long text: bottom, unless huge one-shot block → middle
+    if line_count > 10:
+        alignment = 5
+        margin_v = 40
+    elif max_text_len > 50 and alignment == 5:
         alignment = 2
     if max_text_len > 80 or has_translation:
+        margin_v = max(margin_v, 140)
+    if max_text_len > 140 and line_count <= 10:
         margin_v = max(margin_v, 160)
-    if max_text_len > 140:
-        margin_v = max(margin_v, 180)
     parts = [
         f"FontName={font_name}",
         f"FontSize={size}",
         f"PrimaryColour={style['primary']}",
         f"OutlineColour={style['outline_colour']}",
         f"BorderStyle={style['border_style']}",
-        f"Outline={style['outline']}",
+        f"Outline={max(1, style['outline'] - (1 if size <= 13 else 0))}",
         f"Shadow={style.get('shadow', 0)}",
         f"Alignment={alignment}",
         f"MarginV={margin_v}",
-        "MarginL=100",
-        "MarginR=100",
+        "MarginL=90",
+        "MarginR=90",
         "WrapStyle=2",
     ]
     if style.get("back_colour"):

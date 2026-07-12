@@ -498,7 +498,7 @@ def construire_srt_et_audio(
     subtitle_style: str = "classic",
     subtitle_anim: str = "fade",
     long_verse_mode: str = "pages",
-) -> tuple[float, int]:
+) -> tuple[float, int, int]:
     chemin_liste = dossier_tmp / "liste_concat.txt"
     with chemin_liste.open("w", encoding="utf-8") as f:
         for _, chemin in versets:
@@ -527,6 +527,7 @@ def construire_srt_et_audio(
     t = 0.0
     index_srt = 1
     max_len = 0
+    max_lines = 0
     traductions = traductions or {}
     has_tr = translation_lang != "none"
 
@@ -551,40 +552,35 @@ def construire_srt_et_audio(
                 max_len = max(max_len, len(tr))
                 tr_lines = wrap_to_lines(tr, lat_w)
 
-        # Progressif = petites pages (2 AR + 2 FR).
-        # Etendu = un peu plus de texte, toujours AR+FR ensemble.
+        # Deux modes simples :
+        # - pages  = petits blocs (AR haut + TR bas)
+        # - block  = tout le verset d'un coup
         mode = (long_verse_mode or "pages").strip().lower()
-        if tr_lines:
-            if mode == "block":
-                pages = _paginate_bilingual(
-                    ar_lines,
-                    tr_lines,
-                    duree,
-                    max_lines_on_screen=6,
-                    ar_per_page=2,
-                    tr_per_page=2,
-                )
-            else:
-                pages = _paginate_bilingual(
-                    ar_lines,
-                    tr_lines,
-                    duree,
-                    max_lines_on_screen=4,
-                    ar_per_page=2,
-                    tr_per_page=1,
-                )
+        if mode == "block":
+            page: list[str] = list(ar_lines)
+            if tr_lines:
+                if page:
+                    page.append("")
+                page.extend(tr_lines)
+            pages = [page] if page else [[]]
+        elif tr_lines:
+            pages = _paginate_bilingual(
+                ar_lines,
+                tr_lines,
+                duree,
+                max_lines_on_screen=4,
+                ar_per_page=2,
+                tr_per_page=1,
+            )
         else:
-            max_screen = 4 if mode == "block" else 3
-            pages = _paginate_lines(ar_lines, duree, max_lines_on_screen=max_screen)
+            pages = _paginate_lines(ar_lines, duree, max_lines_on_screen=3)
         page_dur = duree / len(pages) if pages else duree
 
         for page in pages:
-            # Evite une page qui n'est qu'une ligne vide
             body = "\n".join(page).strip("\n")
             if not body.strip():
                 t += page_dur
                 continue
-            # Montée ABSOLUE casse les blocs multi-lignes → fondu à la place
             anim = subtitle_anim
             if anim == "rise" and body.count("\n") >= 2:
                 anim = "fade"
@@ -594,9 +590,11 @@ def construire_srt_et_audio(
             entrees_srt.append(f"{index_srt}\n{debut} --> {fin}\n{texte_wrap}\n")
             t += page_dur
             index_srt += 1
+            max_len = max(max_len, len(body))
+            max_lines = max(max_lines, body.count("\n") + 1)
 
     chemin_srt.write_text("\n".join(entrees_srt), encoding="utf-8")
-    return t, max_len
+    return t, max_len, max_lines
 
 
 def obtenir_duree(chemin_fichier: str) -> float:
@@ -823,6 +821,7 @@ def assembler_video_finale(
     watermark_mode: str = "none",
     watermark_text: str = "",
     has_translation: bool = False,
+    line_count: int = 0,
 ) -> None:
     srt_escaped = _escape_subtitles_path(chemin_srt)
     style = ass_force_style(
@@ -831,6 +830,7 @@ def assembler_video_finale(
         max_text_len=max_text_len,
         font_size_override=font_size,
         has_translation=has_translation,
+        line_count=line_count,
     )
 
     fonts_arg = ""
@@ -936,7 +936,7 @@ def generer_video(
     progress("audio", 60, "Concatenation audio + sous-titres...")
     chemin_srt = job_dir / "sous_titres.srt"
     chemin_audio = job_dir / "audio_complet.wav"
-    duree, max_text_len = construire_srt_et_audio(
+    duree, max_text_len, max_lines = construire_srt_et_audio(
         versets,
         textes,
         job_dir,
@@ -983,6 +983,7 @@ def generer_video(
         watermark_mode=cfg.watermark_mode,
         watermark_text=cfg.watermark_text,
         has_translation=cfg.translation != "none",
+        line_count=max_lines,
     )
 
     # Sidecar for history / regenerate

@@ -485,14 +485,14 @@ export default function App() {
                   className={`anim-chip ${longVerseMode === 'pages' ? 'selected' : ''}`}
                   onClick={() => setLongVerseMode('pages')}
                 >
-                  Progressif
+                  Petits blocs
                 </button>
                 <button
                   type="button"
                   className={`anim-chip ${longVerseMode === 'block' ? 'selected' : ''}`}
                   onClick={() => setLongVerseMode('block')}
                 >
-                  Étendu
+                  D&apos;un coup
                 </button>
               </div>
               <div className="nav-row">
@@ -773,7 +773,7 @@ export default function App() {
                 </li>
                 <li>
                   <span>Longs versets</span>
-                  <span>{longVerseMode === 'block' ? 'Étendu' : 'Progressif'}</span>
+                  <span>{longVerseMode === 'block' ? "D'un coup" : 'Petits blocs'}</span>
                 </li>
                 <li>
                   <span>Style</span>
