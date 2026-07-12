@@ -9,7 +9,7 @@
 Le tout se pilote depuis un vrai studio : tableau de bord, historique, bibliothèque de fonds (Pexels, upload), cache audio classé, puis trim et montage une fois la vidéo générée. Aucun compte distant — tout tourne sur ta machine.
 
 ![Nur — page Créer avec aperçu téléphone](docs/studio-creer.jpg)
-## 📑 Table des matières
+##  Table des matières
 
 - [En bref](#en-bref)
 - [Aperçu de l'interface](#aperçu-de-linterface)
@@ -49,6 +49,37 @@ Audio déjà téléchargé, classé par récitateur puis sourate — prêt à r�
 
 ![Nur — cache audio classé](docs/sons.jpg)
 
+## Récitateurs disponibles
+
+| # | Récitateur | Sourates | Source |
+|---|-----------|----------|--------|
+| 1 | Abderrahman Al Soudais | 114 | EveryAyat |
+| 2 | Saad El Ghamidi | 114 | EveryAyat |
+| 3 | Mishary Rashid Alafasy | 114 | EveryAyat |
+| 4 | Maher Al Mueaqly | 114 | EveryAyat |
+| 5 | Abdelbasset Abdessamad | 114 | EveryAyat |
+| 6 | Ahmed Al Ajmi | 114 | EveryAyat |
+| 7 | Saoud Shuraim | 114 | EveryAyat |
+| 8 | Fares Abbad | 114 | EveryAyat |
+| 9 | Mahmoud Khalil Al Hussary | 114 | EveryAyat |
+| 10 | Mohamed Seddik El Menchaoui | 114 | EveryAyat |
+| 11 | Abdallah Matroud | 114 | EveryAyat |
+| 12 | Abu Bakr Al Shatri | 114 | EveryAyat |
+| 13 | Omar Hisham Al Arabi | 71 | Archive.org |
+| 14 | Noreen Mohammad Siddiq | 114 | mp3quran.net |
+| 15 | Yasser Al Dossari | 114 | EveryAyat |
+| 16 | Hani Ar-Rifai | 114 | EveryAyat |
+| 17 | Ali Al Hudhaify | 114 | EveryAyat |
+| 18 | Muhammad Ayyoub | 114 | EveryAyat |
+| 19 | Muhammad Jibreel | 114 | EveryAyat |
+| 20 | Nasser Al Qatami | 114 | EveryAyat |
+| 21 | Abdullah Basfar | 114 | EveryAyat |
+| 22 | Salah Al Budair | 114 | EveryAyat |
+| 23 | Khalid Al Qahtani | 114 | EveryAyat |
+| 24 | Mahmoud Ali Al Banna | 114 | EveryAyat |
+
+**Note** : Le Coran contient 114 sourates au total. Certains récitateurs n'ont pas toutes les sourates disponibles encore (indiqué dans le tableau).
+
 
 
 ## Prérequis
@@ -80,7 +111,7 @@ Audio déjà téléchargé, classé par récitateur puis sourate — prêt à r�
 
 ## Installation
 
-### 1️⃣ Cloner le repository
+### 1️ Cloner le repository
 
 ```bash
 git clone https://github.com/OumarouSandaSouley/Nur.git
@@ -89,7 +120,7 @@ cd Nur
 
 Ou télécharger directement : [Archive ZIP](https://github.com/OumarouSandaSouley/Nur/archive/refs/heads/main.zip)
 
-### 2️⃣ Installer les dépendances
+### 2️ Installer les dépendances
 
 **Windows (PowerShell)** :
 
@@ -131,8 +162,8 @@ bash start.sh
 | `start.ps1` | Windows (PowerShell) |
 | `start.sh` | Git Bash / macOS / Linux |
 
-✅ Puis ouvre **http://localhost:5173** dans ton navigateur  
-🔗 API locale : `http://127.0.0.1:8000`
+Puis ouvre **http://localhost:5173** dans ton navigateur  
+API locale : `http://127.0.0.1:8000`
 
 ## Configuration (API Pexels)
 
@@ -214,19 +245,32 @@ Nur/
 
 
 
-## 🔗 Liens utiles
+##   Liens utiles
 
-- 📺 Récitateurs : [EveryAyat](https://everyayat.com/) (source des récitations)
-- 📖 Quran : [Quran.com](https://quran.com/)
-- 🎨 Fonds : [Pexels](https://www.pexels.com/) (gratuit, licence libre)
-- 🎬 Guide ffmpeg : [ffmpeg.org](https://ffmpeg.org/)
-- ⚙️ API docs : [FastAPI](https://fastapi.tiangolo.com/)
+-  **Sources des récitateurs** :
+  - [EveryAyat](https://everyayat.com/) — 22 récitateurs (verset par verset)
+  - [Archive.org](https://archive.org/) — Omar Hisham Al Arabi (71 sourates)
+  - [mp3quran.net](https://mp3quran.net/) — Noreen Mohammad Siddiq (114 sourates)
+-  Quran : [Quran.com](https://quran.com/)
+-  Fonds : [Pexels](https://www.pexels.com/) (gratuit, licence libre)
+-  Guide ffmpeg : [ffmpeg.org](https://ffmpeg.org/)
+-  API docs : [FastAPI](https://fastapi.tiangolo.com/)
 
-## 📄 Licence
+##  Licence
 
-Nur — usage personnel · récitations publiques · fonds : licence Pexels
+Nur — code source **usage personnel** · récitations publiques · fonds : licence Pexels
 
-Crée par [Oumarou Sanda Souley](https://github.com/OumarouSandaSouley)
+Je n'ai aucun droit sur les récitations coraniques (œuvres publiques) ni sur les fonds Pexels (licence Pexels).  
+Le code source est libre d'utilisation personnelle.
+
+
+Créé par [Oumarou Sanda Souley](https://github.com/OumarouSandaSouley)
+
+### Me contacter
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat-square&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/souley-oumarou-sanda-8506b0302)
+[![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=flat-square&logo=twitter&logoColor=white)](https://x.com/OumarouSSouley)
+[![Portfolio](https://img.shields.io/badge/Portfolio-000000?style=flat-square&logo=vercel&logoColor=white)](https://www.oumarousandasouley.vercel.app/)
 
 
 
