@@ -58,6 +58,19 @@ select {
   flex-shrink: 0;
 }
 
+.brand-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.brand-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
 .brand {
   font-family: var(--font-display);
   font-size: 1.9rem;

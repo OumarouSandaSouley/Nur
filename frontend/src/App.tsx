@@ -187,9 +187,12 @@ export default function App() {
   return (
     <div className="app shell">
       <header className="hero compact">
-        <h1 className="brand">
-          Nur<span>.</span>
-        </h1>
+        <div className="brand-row">
+          <img src="/nur-logo.png" alt="" className="brand-logo" width={40} height={40} />
+          <h1 className="brand">
+            Nur<span>.</span>
+          </h1>
+        </div>
       </header>
 
       <nav className="steps" aria-label="Étapes">
