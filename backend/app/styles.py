@@ -20,8 +20,9 @@ SUBTITLE_ANIMS: dict[str, dict] = {
         "id": "rise",
         "name": "Montee",
         "description": "Glisse legerement vers le haut",
-        # Centre horizontal (540 = milieu de 1080)
-        "tag": r"{\move(540,1780,540,1680,0,520)\fad(280,420)}",
+        # Pas de \move en Y absolu : casse Meditation/centre et pousse le texte hors cadre
+        # (libass reclasse alors le bloc en haut). Effet doux compatible tous alignements.
+        "tag": r"{\fad(300,420)\fscy108\t(0,480,\fscy100)}",
     },
     "soft": {
         "id": "soft",
@@ -43,14 +44,14 @@ SUBTITLE_STYLES: dict[str, dict] = {
         "name": "Classique",
         "description": "Blanc, contour noir, bas",
         "preview": {"color": "#FFFFFF", "outline": "#000000", "align": "bottom"},
-        "font_size": 22,
+        "font_size": 26,
         "primary": "&H00FFFFFF",
         "outline_colour": "&H00000000",
-        "outline": 2,
+        "outline": 3,
         "alignment": 2,
-        "margin_v": 120,
+        "margin_v": 140,
         "border_style": 1,
-        "shadow": 0,
+        "shadow": 1,
         "fade": False,
     },
     "gold": {
@@ -73,14 +74,14 @@ SUBTITLE_STYLES: dict[str, dict] = {
         "name": "Meditation",
         "description": "Blanc centre au milieu",
         "preview": {"color": "#F5F0E8", "outline": "#0D1F1A", "align": "center"},
-        "font_size": 26,
+        "font_size": 28,
         "primary": "&H00E8F0F5",
         "outline_colour": "&H001A1F0D",
-        "outline": 2,
+        "outline": 3,
         "alignment": 5,
         "margin_v": 0,
         "border_style": 1,
-        "shadow": 0,
+        "shadow": 1,
         "fade": False,
     },
     "soft": {
@@ -201,30 +202,22 @@ def font_size_for_length(
     has_translation: bool = False,
     line_count: int = 0,
 ) -> int:
-    """Taille adaptive pour rester dans le cadre vertical 1080px."""
+    """Taille adaptive — reste lisible (plancher ~20), ne compacte que les cas extremes."""
     size = base
     if has_translation:
-        size = min(size, base - 2)
-    if max_chars > 220:
-        size = min(size, 15)
-    elif max_chars > 150:
-        size = min(size, 16)
-    elif max_chars > 100:
-        size = min(size, 18)
-    elif max_chars > 60:
-        size = min(size, 20)
-    elif max_chars > 40:
-        size = min(size, max(18, base - 2))
-    # Beaucoup de lignes (mode d'un coup) → reduire encore
-    if line_count > 24:
-        size = min(size, 11)
-    elif line_count > 18:
-        size = min(size, 12)
-    elif line_count > 12:
-        size = min(size, 13)
-    elif line_count > 8:
-        size = min(size, 15)
-    return max(10, size)
+        size = max(20, base - 2)
+    # Compactage leger seulement si vraiment necessaire
+    if line_count > 14:
+        size = min(size, max(16, base - 8))
+    elif line_count > 10:
+        size = min(size, max(18, base - 5))
+    elif line_count > 7:
+        size = min(size, max(20, base - 3))
+    if max_chars > 260:
+        size = min(size, max(16, size - 4))
+    elif max_chars > 180:
+        size = min(size, max(18, size - 2))
+    return max(16, size)
 
 
 def _center_alignment(alignment: int) -> int:
@@ -238,38 +231,46 @@ def _center_alignment(alignment: int) -> int:
 
 def ass_force_style(
     style_id: str,
-    font_name: str = "Traditional Arabic",
+    font_name: str = "Segoe UI",
     max_text_len: int = 0,
     font_size_override: int | None = None,
     has_translation: bool = False,
     line_count: int = 0,
+    reserve_bottom: int = 0,
 ) -> str:
     style = SUBTITLE_STYLES.get(style_id, SUBTITLE_STYLES["classic"])
     base = int(font_size_override or style["font_size"])
     size = font_size_for_length(
         base, max_text_len, has_translation=has_translation, line_count=line_count
     )
-    # Toujours centre horizontalement
+    alignment = _center_alignment(int(style["alignment"]))
+    margin_v = int(style["margin_v"])
+    if has_translation:
+        margin_v = max(margin_v, 160)
+    if base >= 30:
+        margin_v = max(margin_v, 170)
+        if alignment == 5:
+            alignment = 2
+            margin_v = max(margin_v, 190)
     if line_count > 8:
-        alignment = 5
-        margin_v = 24
-    else:
-        alignment = _center_alignment(int(style["alignment"]))
-        margin_v = style["margin_v"]
-        if max_text_len > 80 or has_translation:
-            margin_v = max(margin_v, 140)
+        alignment = 2
+        margin_v = max(margin_v, 180)
+    if reserve_bottom:
+        margin_v = max(margin_v, reserve_bottom)
+    # Contour plus marque pour fonds clairs (flou cine / coucher de soleil)
+    outline = max(int(style["outline"]), 2 if size >= 20 else 1)
     parts = [
         f"FontName={font_name}",
         f"FontSize={size}",
         f"PrimaryColour={style['primary']}",
         f"OutlineColour={style['outline_colour']}",
         f"BorderStyle={style['border_style']}",
-        f"Outline={1 if size <= 13 else style['outline']}",
-        f"Shadow={style.get('shadow', 0)}",
+        f"Outline={outline}",
+        f"Shadow={max(int(style.get('shadow', 0)), 1)}",
         f"Alignment={alignment}",
         f"MarginV={margin_v}",
-        "MarginL=100",
-        "MarginR=100",
+        "MarginL=80",
+        "MarginR=80",
         "WrapStyle=2",
     ]
     if style.get("back_colour"):

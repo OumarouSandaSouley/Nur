@@ -28,7 +28,14 @@ from .data import (
     SOURATES,
     TRADUCTIONS,
 )
-from .styles import VIDEO_STYLES, ass_force_style, decorate_srt_text
+from .styles import (
+    SUBTITLE_STYLES,
+    VIDEO_STYLES,
+    ass_force_style,
+    decorate_srt_text,
+    font_size_for_length,
+    _center_alignment,
+)
 
 ProgressCallback = Callable[[str, int, str], None]
 
@@ -37,6 +44,45 @@ CACHE_AUDIO = ROOT / "cache" / "audio"
 OUTPUTS = ROOT / "outputs"
 ASSETS_FONDS = ROOT / "assets" / "fonds"
 FONTS_DIR = ROOT / "assets" / "fonts"
+
+
+def _windows_fonts_dir() -> Path | None:
+    windir = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
+    return windir if windir.is_dir() else None
+
+
+def resolve_arabic_font_name() -> str:
+    """Police presente sur la machine (Traditional Arabic souvent absent sous Windows)."""
+    fonts = _windows_fonts_dir()
+    if fonts:
+        candidates = [
+            ("Segoe UI", "segoeui.ttf"),
+            ("Nirmala UI", "NIRMALA.TTF"),
+            ("Nirmala UI", "nirmala.ttf"),
+            ("Traditional Arabic", "trado.ttf"),
+            ("Traditional Arabic", "tradbdo.ttf"),
+            ("Arial", "arial.ttf"),
+        ]
+        for family, filename in candidates:
+            if (fonts / filename).is_file():
+                return family
+    return "Arial"
+
+
+def _fontsdir_arg() -> str:
+    """Expose les polices systeme a libass (requis pour \\fnArial et Segoe UI)."""
+    dirs: list[Path] = []
+    if FONTS_DIR.is_dir() and any(FONTS_DIR.glob("*.ttf")):
+        dirs.append(FONTS_DIR)
+    win = _windows_fonts_dir()
+    if win:
+        dirs.append(win)
+    if not dirs:
+        return ""
+    # Un seul fontsdir : priorite au dossier systeme (Arial + Segoe)
+    chosen = dirs[-1] if win else dirs[0]
+    escaped = str(chosen.resolve()).replace("\\", "/").replace(":", "\\:")
+    return f":fontsdir='{escaped}'"
 
 
 @dataclass
@@ -50,7 +96,7 @@ class JobConfig:
     bg_path: str | None = None
     background_url: str | None = None
     include_basmala: bool = True
-    font_name: str = "Traditional Arabic"
+    font_name: str = ""  # resolu au runtime si vide
     translation: str = "none"  # none | fr | en
     font_size: int | None = None
     subtitle_anim: str = "fade"  # none | fade | rise | soft | blur
@@ -342,7 +388,48 @@ def recuperer_traduction(
     return {a["numberInSurah"]: a["text"] for a in data["data"]["ayahs"]}
 
 
-def wrap_to_lines(text: str, width: int) -> list[str]:
+# Mots outils : ne pas laisser seuls en fin de ligne (FR/EN)
+_LATIN_GLUE = frozenset(
+    {
+        "le",
+        "la",
+        "les",
+        "un",
+        "une",
+        "des",
+        "du",
+        "de",
+        "d'",
+        "l'",
+        "et",
+        "ou",
+        "à",
+        "au",
+        "aux",
+        "en",
+        "ce",
+        "ces",
+        "se",
+        "sa",
+        "son",
+        "the",
+        "a",
+        "an",
+        "of",
+        "and",
+        "or",
+        "to",
+        "in",
+        "on",
+        "for",
+    }
+)
+
+# Cue FR separee : Arial suffit, pas de marques BiDi (elles decalaient le texte a gauche)
+_LATIN_FONT_TAG = r"{\fnArial}"
+
+
+def wrap_to_lines(text: str, width: int, *, glue_short: bool = False) -> list[str]:
     """Coupe en lignes sans jamais tronquer (pagination ensuite)."""
     text = " ".join((text or "").split())
     if not text:
@@ -365,15 +452,31 @@ def wrap_to_lines(text: str, width: int) -> list[str]:
             current = trial
         else:
             if current:
-                lines.append(current)
-            current = word
+                parts = current.split(" ")
+                # Evite "… et la" / "… the" seuls en fin de ligne
+                if (
+                    glue_short
+                    and len(parts) > 1
+                    and parts[-1].lower().rstrip(",;:.") in _LATIN_GLUE
+                ):
+                    stem = " ".join(parts[:-1])
+                    lines.append(stem)
+                    current = f"{parts[-1]} {word}"
+                    if len(current) > width:
+                        lines.append(parts[-1])
+                        current = word
+                else:
+                    lines.append(current)
+                    current = word
+            else:
+                current = word
     if current:
         lines.append(current)
     return lines
 
 
 def wrap_latin_text(text: str, width: int = 30, max_lines: int = 0) -> str:
-    lines = wrap_to_lines(text, width)
+    lines = wrap_to_lines(text, width, glue_short=True)
     if max_lines and len(lines) > max_lines:
         lines = lines[:max_lines]
     return "\n".join(lines)
@@ -388,20 +491,57 @@ def wrap_arabic_text(text: str, width: int = 24, max_lines: int = 0) -> str:
 
 
 def _safe_line_widths(text_len: int, has_translation: bool) -> tuple[int, int]:
-    """Largeurs caracteres sures pour 1080px avec marges ~100px."""
-    # Arabic glyphs are visually wider
+    """Largeurs pixels-safe a FontSize ~24 sur 1080 (sinon coupe a droite)."""
     if text_len > 160:
-        ar, lat = 20, 26
+        ar, lat = 22, 26
     elif text_len > 100:
-        ar, lat = 22, 28
+        ar, lat = 24, 28
     elif text_len > 60:
-        ar, lat = 24, 30
+        ar, lat = 26, 30
     else:
-        ar, lat = 26, 32
+        ar, lat = 28, 32
     if has_translation:
-        ar = max(18, ar - 2)
-        lat = max(24, lat - 2)
+        ar = max(20, ar - 2)
+        lat = max(26, lat - 2)
     return ar, lat
+
+
+def _style_latin_line(line: str, fs: int | None = None) -> str:
+    """Police Arial pour la traduction (cue dediee)."""
+    if not line:
+        return line
+    if line.startswith("{") and "\\fn" in line[:24]:
+        return line
+    fs_tag = f"\\fs{fs}" if fs else ""
+    return f"{{\\fnArial{fs_tag}}}{line}"
+
+
+def _mark_translation_lines(page: list[str], fs: int | None = None) -> list[str]:
+    """Apres le separateur vide, les lignes sont de la traduction."""
+    if not page:
+        return page
+    try:
+        sep = page.index("")
+    except ValueError:
+        return [_style_latin_line(ln, fs) if ln else ln for ln in page]
+    out = list(page[: sep + 1])
+    out.extend(_style_latin_line(ln, fs) if ln else ln for ln in page[sep + 1 :])
+    return out
+
+
+def _split_ar_tr_page(page: list[str]) -> tuple[list[str], list[str]]:
+    """Separe arabe / traduction d'une page (separateur ligne vide)."""
+    try:
+        sep = page.index("")
+    except ValueError:
+        ar, tr = [], []
+        for ln in page:
+            if "\\fnArial" in ln:
+                tr.append(ln)
+            else:
+                ar.append(ln)
+        return ar, tr
+    return list(page[:sep]), [ln for ln in page[sep + 1 :] if ln]
 
 
 def _paginate_lines(
@@ -558,16 +698,15 @@ def construire_srt_et_audio(
                 tr = traductions.get(numero_verset, "")
             if tr:
                 max_len = max(max_len, len(tr))
-                tr_lines = wrap_to_lines(tr, lat_w)
+                tr_lines = wrap_to_lines(tr, lat_w, glue_short=True)
 
-        # Deux modes simples :
-        # - pages  = petits blocs (AR haut + TR bas)
+        # Deux modes :
+        # - pages  = petits blocs (AR + TR)
         # - block  = tout le verset d'un coup
         if mode == "block":
             if tr_lines:
-                # Traduction un peu plus petite pour tenir a l'ecran
-                fr_body = "\n".join(tr_lines)
-                page = list(ar_lines) + [""] + [r"{\fs10}" + fr_body]
+                fr_styled = [_style_latin_line(ln) for ln in tr_lines]
+                page = list(ar_lines) + [""] + fr_styled
             else:
                 page = list(ar_lines)
             pages = [page] if page else [[]]
@@ -578,32 +717,64 @@ def construire_srt_et_audio(
                 duree,
                 max_lines_on_screen=4,
                 ar_per_page=2,
-                tr_per_page=1,
+                tr_per_page=2,
             )
+            pages = [_mark_translation_lines(p) for p in pages]
         else:
             pages = _paginate_lines(ar_lines, duree, max_lines_on_screen=3)
         page_dur = duree / len(pages) if pages else duree
 
         for page in pages:
-            body = "\n".join(page).strip("\n")
-            if not body.strip():
+            if not any(ln.strip() for ln in page):
                 t += page_dur
                 continue
             anim = subtitle_anim
-            nlines = body.count("\n") + 1
+            nlines = sum(1 for ln in page if ln.strip())
             if nlines >= 3 and anim in ("rise", "soft"):
                 anim = "fade"
-            align_an = 5 if (mode == "block" or nlines > 8) else 2
-            texte_wrap = decorate_srt_text(
-                body, subtitle_style, anim=anim, align_an=align_an
-            )
+            if anim == "rise" and (subtitle_style == "center" or mode == "block"):
+                anim = "fade"
+
             debut = secondes_vers_srt_temps(t)
             fin = secondes_vers_srt_temps(t + page_dur)
-            entrees_srt.append(f"{index_srt}\n{debut} --> {fin}\n{texte_wrap}\n")
+            ar_part, tr_part = _split_ar_tr_page(page)
+
+            # Deux cues superposes : arabe (centre) + FR (bas centre)
+            if ar_part and tr_part:
+                ar_body = "\n".join(ar_part).strip()
+                # Une seule balise Arial pour tout le bloc FR (evite artefacts)
+                plain_fr = [
+                    re.sub(r"^\{\\fnArial(?:\\fs\d+)?\}", "", ln) for ln in tr_part
+                ]
+                tr_body = r"{\fnArial}" + "\n".join(plain_fr)
+                texte_ar = decorate_srt_text(
+                    ar_body, subtitle_style, anim=anim, align_an=5
+                )
+                tr_fade = r"\fad(420,520)" if anim != "none" else ""
+                texte_tr = "{\\an2\\pos(540,1520)" + tr_fade + "}" + tr_body
+                entrees_srt.append(f"{index_srt}\n{debut} --> {fin}\n{texte_ar}\n")
+                index_srt += 1
+                entrees_srt.append(f"{index_srt}\n{debut} --> {fin}\n{texte_tr}\n")
+                index_srt += 1
+                max_lines = max(max_lines, len(ar_part), len(tr_part))
+                max_len = max(max_len, len(ar_body), len(tr_body))
+            else:
+                body = "\n".join(ln for ln in page if ln is not None).strip("\n")
+                if not body.strip():
+                    t += page_dur
+                    continue
+                align_an = 5 if (mode == "block" or subtitle_style == "center") else 2
+                if nlines > 6:
+                    align_an = 2
+                texte_wrap = decorate_srt_text(
+                    body, subtitle_style, anim=anim, align_an=align_an
+                )
+                entrees_srt.append(f"{index_srt}\n{debut} --> {fin}\n{texte_wrap}\n")
+                index_srt += 1
+                max_len = max(max_len, len(body))
+                max_lines = max(max_lines, body.count("\n") + 1)
+
             t += page_dur
-            index_srt += 1
-            max_len = max(max_len, len(body))
-            max_lines = max(max_lines, body.count("\n") + 1)
 
     chemin_srt.write_text("\n".join(entrees_srt), encoding="utf-8")
     return t, max_len, max_lines
@@ -634,7 +805,95 @@ def secondes_vers_srt_temps(secondes: float) -> str:
     minutes = int((secondes % 3600) // 60)
     sec = int(secondes % 60)
     millis = int(round((secondes - int(secondes)) * 1000))
+    if millis >= 1000:
+        millis = 999
     return f"{heures:02d}:{minutes:02d}:{sec:02d},{millis:03d}"
+
+
+def secondes_vers_ass_temps(secondes: float) -> str:
+    heures = int(secondes // 3600)
+    minutes = int((secondes % 3600) // 60)
+    sec = int(secondes % 60)
+    cs = int(round((secondes - int(secondes)) * 100))
+    if cs >= 100:
+        cs = 99
+    return f"{heures}:{minutes:02d}:{sec:02d}.{cs:02d}"
+
+
+def _parse_srt_events(chemin_srt: Path) -> list[tuple[float, float, str]]:
+    """Parse SRT (texte pouvant contenir des tags ASS) → (debut, fin, texte)."""
+    raw = chemin_srt.read_text(encoding="utf-8").strip()
+    if not raw:
+        return []
+    events: list[tuple[float, float, str]] = []
+    blocks = re.split(r"\n\s*\n", raw)
+    for block in blocks:
+        lines = block.strip().splitlines()
+        if len(lines) < 2:
+            continue
+        # saute l'index numerique si present
+        idx = 0
+        if lines[0].strip().isdigit():
+            idx = 1
+        if idx >= len(lines) or "-->" not in lines[idx]:
+            continue
+        timing = lines[idx]
+        left, _, right = timing.partition("-->")
+        text = "\n".join(lines[idx + 1 :]).strip()
+        if not text:
+            continue
+
+        def _to_sec(ts: str) -> float:
+            ts = ts.strip().replace(",", ".")
+            parts = ts.split(":")
+            if len(parts) != 3:
+                return 0.0
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+
+        events.append((_to_sec(left), _to_sec(right), text))
+    return events
+
+
+def ecrire_ass(
+    chemin_ass: Path,
+    events: list[tuple[float, float, str]],
+    *,
+    font_name: str,
+    font_size: int,
+    primary: str,
+    outline_colour: str,
+    outline: int,
+    shadow: int,
+    alignment: int,
+    margin_v: int,
+    border_style: int = 1,
+    back_colour: str | None = None,
+) -> None:
+    """ASS natif PlayRes 1080x1920 — indispensable pour une taille correcte."""
+    back = back_colour or "&H00000000"
+    header = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: {LARGEUR_SORTIE}
+PlayResY: {HAUTEUR_SORTIE}
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,{font_name},{font_size},{primary},&H000000FF,{outline_colour},{back},0,0,0,0,100,100,0,0,{border_style},{outline},{shadow},{alignment},80,80,{margin_v},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    lines = [header]
+    for start, end, text in events:
+        # ASS utilise \N pour les sauts de ligne
+        body = text.replace("\n", r"\N")
+        lines.append(
+            f"Dialogue: 0,{secondes_vers_ass_temps(start)},{secondes_vers_ass_temps(end)},"
+            f"Default,,0,0,0,,{body}"
+        )
+    chemin_ass.write_text("\n".join(lines) + "\n", encoding="utf-8-sig")
 
 
 def _filtre_fond(video_style: str) -> str:
@@ -829,6 +1088,50 @@ def _escape_drawtext(text: str) -> str:
     )
 
 
+def _drawtext_font_opt() -> str:
+    """Police systeme pour drawtext (obligatoire sous Windows sinon texte fantome)."""
+    windir = Path(os.environ.get("WINDIR", r"C:\Windows"))
+    candidates = [
+        windir / "Fonts" / "arial.ttf",
+        windir / "Fonts" / "segoeui.ttf",
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
+        Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
+    ]
+    for font in candidates:
+        if font.is_file():
+            escaped = str(font.resolve()).replace("\\", "/").replace(":", "\\:")
+            return f":fontfile='{escaped}'"
+    return ""
+
+
+def _append_credits_to_srt(
+    chemin_srt: Path,
+    duration: float,
+    line1: str,
+    line2: str = "",
+) -> None:
+    """Ajoute une cue credits en bas (sera convertie en ASS ensuite)."""
+    if not line1 or duration <= 0:
+        return
+    raw = chemin_srt.read_text(encoding="utf-8")
+    next_idx = 1
+    for line in raw.splitlines():
+        if line.strip().isdigit():
+            next_idx = max(next_idx, int(line.strip()) + 1)
+    body = (
+        r"{\an2\pos(540,1785)\fnArial\fs34\bord3\shad1"
+        r"\1c&H00FFFFFF&\3c&H00000000&}"
+        f"{line1}"
+    )
+    if line2:
+        body += r"\N{\fs28}" + line2
+    debut = secondes_vers_srt_temps(0)
+    fin = secondes_vers_srt_temps(duration)
+    block = f"{next_idx}\n{debut} --> {fin}\n{body}\n"
+    chemin_srt.write_text(raw.rstrip() + "\n\n" + block, encoding="utf-8")
+
+
 def assembler_video_finale(
     chemin_video_fond: Path,
     chemin_audio: Path,
@@ -845,34 +1148,57 @@ def assembler_video_finale(
     credit_line1: str = "",
     credit_line2: str = "",
 ) -> None:
-    srt_escaped = _escape_subtitles_path(chemin_srt)
-    style = ass_force_style(
-        subtitle_style,
-        font_name,
-        max_text_len=max_text_len,
-        font_size_override=font_size,
-        has_translation=has_translation,
-        line_count=line_count,
+    if not font_name:
+        font_name = resolve_arabic_font_name()
+
+    if show_credits and credit_line1 and audio_duration:
+        _append_credits_to_srt(
+            chemin_srt, float(audio_duration), credit_line1, credit_line2 or ""
+        )
+
+    reserve = 240 if show_credits and credit_line1 else (170 if has_translation else 0)
+    style = SUBTITLE_STYLES.get(subtitle_style, SUBTITLE_STYLES["classic"])
+
+    base = int(font_size or style["font_size"])
+    size = font_size_for_length(
+        base, max_text_len, has_translation=has_translation, line_count=line_count
+    )
+    alignment = _center_alignment(int(style["alignment"]))
+    margin_v = int(style["margin_v"])
+    if has_translation:
+        margin_v = max(margin_v, 160)
+    if base >= 30 and alignment == 5:
+        alignment = 2
+        margin_v = max(margin_v, 180)
+    if line_count > 8:
+        alignment = 2
+        margin_v = max(margin_v, 180)
+    if reserve:
+        margin_v = max(margin_v, reserve)
+    outline = max(int(style["outline"]), 2)
+    shadow = max(int(style.get("shadow", 0)), 1)
+
+    events = _parse_srt_events(chemin_srt)
+    chemin_ass = chemin_srt.with_suffix(".ass")
+    ecrire_ass(
+        chemin_ass,
+        events,
+        font_name=font_name,
+        font_size=size,
+        primary=style["primary"],
+        outline_colour=style["outline_colour"],
+        outline=outline,
+        shadow=shadow,
+        alignment=alignment,
+        margin_v=margin_v,
+        border_style=int(style["border_style"]),
+        back_colour=style.get("back_colour"),
     )
 
-    fonts_arg = ""
-    if FONTS_DIR.is_dir() and any(FONTS_DIR.glob("*.ttf")):
-        fonts_dir = str(FONTS_DIR.resolve()).replace("\\", "/").replace(":", "\\:")
-        fonts_arg = f":fontsdir='{fonts_dir}'"
-
-    filtre = f"subtitles='{srt_escaped}'{fonts_arg}:force_style='{style}'"
-    if show_credits and credit_line1:
-        l1 = _escape_drawtext(credit_line1)
-        l2 = _escape_drawtext(credit_line2 or "")
-        filtre += (
-            f",drawtext=text='{l1}':fontsize=26:fontcolor=white@0.82:"
-            f"x=(w-tw)/2:y=h-118:shadowcolor=black@0.55:shadowx=1:shadowy=1"
-        )
-        if l2:
-            filtre += (
-                f",drawtext=text='{l2}':fontsize=22:fontcolor=white@0.7:"
-                f"x=(w-tw)/2:y=h-78:shadowcolor=black@0.5:shadowx=1:shadowy=1"
-            )
+    ass_escaped = _escape_subtitles_path(chemin_ass)
+    fonts_arg = _fontsdir_arg()
+    # Filtre ass= respecte PlayResX/Y du fichier (contrairement a SRT+force_style)
+    filtre = f"ass='{ass_escaped}'{fonts_arg}"
 
     fade_out_start = max(0.0, (audio_duration or 10.0) - 1.5)
     audio_filter = f"afade=t=in:st=0:d=1.2,afade=t=out:st={fade_out_start:.2f}:d=1.5"
@@ -880,7 +1206,6 @@ def assembler_video_finale(
     logo = ROOT / "assets" / "nur-logo.png"
     cmd = ["ffmpeg", "-y", "-i", str(chemin_video_fond), "-i", str(chemin_audio)]
 
-    # Watermark Nur toujours actif si le logo est present
     if logo.is_file():
         cmd += ["-i", str(logo)]
         fc = (
