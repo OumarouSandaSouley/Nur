@@ -53,6 +53,9 @@ class JobConfig:
     font_name: str = "Traditional Arabic"
     translation: str = "none"  # none | fr | en
     font_size: int | None = None
+    watermark_mode: str = "none"  # none | logo | text
+    watermark_text: str = ""  # TikTok handle when mode=text
+    bg_paths: list[str] | None = None  # multi-fonds montage
 
 
 def estimer_duree(
@@ -472,6 +475,8 @@ def assembler_video_finale(
     max_text_len: int = 0,
     font_size: int | None = None,
     audio_duration: float | None = None,
+    watermark_mode: str = "none",
+    watermark_text: str = "",
 ) -> None:
     srt_escaped = _escape_subtitles_path(chemin_srt)
     style = ass_force_style(
@@ -487,36 +492,38 @@ def assembler_video_finale(
     fade_out_start = max(0.0, (audio_duration or 10.0) - 1.5)
     audio_filter = f"afade=t=in:st=0:d=1.2,afade=t=out:st={fade_out_start:.2f}:d=1.5"
 
-    result = subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(chemin_video_fond),
-            "-i",
-            str(chemin_audio),
-            "-vf",
-            filtre,
-            "-af",
-            audio_filter,
-            "-c:v",
-            "libx264",
-            "-preset",
-            "medium",
-            "-crf",
-            "20",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-shortest",
-            "-pix_fmt",
-            "yuv420p",
-            str(chemin_sortie),
-        ],
-        capture_output=True,
-        text=True,
-    )
+    logo = ROOT / "assets" / "nur-logo.png"
+    mode = (watermark_mode or "none").strip().lower()
+    cmd = ["ffmpeg", "-y", "-i", str(chemin_video_fond), "-i", str(chemin_audio)]
+
+    if mode == "text" and watermark_text.strip():
+        safe = watermark_text.strip().replace("\\", "\\\\").replace(":", "\\:").replace("'", "")
+        if not safe.startswith("@"):
+            safe = f"@{safe}"
+        vf = (
+            f"{filtre},"
+            f"drawtext=text='{safe}':fontsize=28:fontcolor=white@0.55:"
+            f"x=w-tw-40:y=40:shadowcolor=black@0.4:shadowx=1:shadowy=1"
+        )
+        cmd += ["-vf", vf, "-af", audio_filter]
+    elif mode == "logo" and logo.is_file():
+        cmd += ["-i", str(logo)]
+        fc = (
+            f"[0:v]{filtre}[base];"
+            f"[2:v]format=rgba,colorchannelmixer=aa=0.4,scale=72:-1[lg];"
+            f"[base][lg]overlay=W-w-36:36[v]"
+        )
+        cmd += ["-filter_complex", fc, "-map", "[v]", "-map", "1:a", "-af", audio_filter]
+    else:
+        cmd += ["-vf", filtre, "-af", audio_filter]
+
+    cmd += [
+        "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+        "-c:a", "aac", "-b:a", "192k", "-shortest", "-pix_fmt", "yuv420p",
+        str(chemin_sortie),
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"Assemblage final echoue : {result.stderr[-1200:]}")
 
@@ -614,6 +621,8 @@ def generer_video(
         max_text_len=max_text_len,
         font_size=cfg.font_size,
         audio_duration=duree,
+        watermark_mode=cfg.watermark_mode,
+        watermark_text=cfg.watermark_text,
     )
 
     # Sidecar for history / regenerate
@@ -626,6 +635,8 @@ def generer_video(
         "video_style": cfg.video_style,
         "include_basmala": cfg.include_basmala,
         "translation": cfg.translation,
+        "watermark_mode": cfg.watermark_mode,
+        "watermark_text": cfg.watermark_text,
         "output_name": nom,
         "duration_seconds": round(duree, 1),
     }

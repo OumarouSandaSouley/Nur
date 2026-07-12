@@ -34,6 +34,8 @@ export default function App() {
   const [subtitleStyle, setSubtitleStyle] = useState('classic')
   const [fontSize, setFontSize] = useState(24)
   const [videoStyle, setVideoStyle] = useState('clean')
+  const [watermarkMode, setWatermarkMode] = useState<'none' | 'logo' | 'text'>('none')
+  const [watermarkText, setWatermarkText] = useState('')
 
   const [bgMode, setBgMode] = useState<'url' | 'search' | 'upload' | 'library'>('search')
   const [backgroundUrl, setBackgroundUrl] = useState('')
@@ -187,6 +189,10 @@ export default function App() {
       form.append('video_style', videoStyle)
       form.append('include_basmala', String(includeBasmala))
       form.append('translation', translation)
+      form.append('watermark_mode', watermarkMode)
+      if (watermarkMode === 'text' && watermarkText.trim()) {
+        form.append('watermark_text', watermarkText.trim())
+      }
 
       if (bgMode === 'url' && backgroundUrl.trim()) {
         form.append('background_url', backgroundUrl.trim())
@@ -628,7 +634,57 @@ export default function App() {
                   <span>Fond</span>
                   <span>{bgLabel}</span>
                 </li>
+                <li>
+                  <span>Watermark</span>
+                  <span>
+                    {watermarkMode === 'none'
+                      ? 'Aucun'
+                      : watermarkMode === 'logo'
+                        ? 'Logo Nur'
+                        : watermarkText.trim()
+                          ? `@${watermarkText.replace(/^@/, '')}`
+                          : 'Texte'}
+                  </span>
+                </li>
               </ul>
+
+              <div className="watermark-box">
+                <p className="field-label">Watermark (optionnel)</p>
+                <div className="wm-tabs">
+                  {(
+                    [
+                      ['none', 'Aucun'],
+                      ['logo', 'Logo'],
+                      ['text', 'Pseudo'],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`bg-tab ${watermarkMode === id ? 'active' : ''}`}
+                      onClick={() => setWatermarkMode(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {watermarkMode === 'text' && (
+                  <label className="field">
+                    Pseudo TikTok
+                    <input
+                      type="text"
+                      placeholder="@toncompte"
+                      value={watermarkText}
+                      onChange={(e) => setWatermarkText(e.target.value)}
+                      maxLength={40}
+                    />
+                  </label>
+                )}
+                {watermarkMode === 'logo' && (
+                  <p className="hint tight">Petit logo Nur en haut a droite.</p>
+                )}
+              </div>
+
               <div className="nav-row">
                 <button type="button" className="btn btn-ghost" onClick={() => setStep(2)}>
                   Retour

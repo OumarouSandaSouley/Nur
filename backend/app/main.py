@@ -156,16 +156,26 @@ async def create_job(
     include_basmala: str = Form("true"),
     translation: str = Form("none"),
     font_size: int | None = Form(None),
+    watermark_mode: str = Form("none"),
+    watermark_text: str = Form(""),
     background_id: str | None = Form(None),
+    background_ids: str | None = Form(None),  # JSON list for multi-fonds
     background_url: str | None = Form(None),
     background: UploadFile | None = File(None),
 ):
     bg_path: str | None = None
+    bg_paths: list[str] | None = None
     basmala = include_basmala.strip().lower() in ("1", "true", "yes", "on")
     bg_url: str | None = None
     tr = translation.strip().lower() if translation else "none"
     if tr not in ("none", "fr", "en"):
         raise HTTPException(400, "Traduction invalide (none/fr/en).")
+    wm = (watermark_mode or "none").strip().lower()
+    if wm not in ("none", "logo", "text"):
+        raise HTTPException(400, "Watermark invalide (none/logo/text).")
+    wm_text = (watermark_text or "").strip()[:40]
+    if wm == "text" and not wm_text:
+        raise HTTPException(400, "Indique un pseudo pour le watermark texte.")
 
     try:
         if background and background.filename:
@@ -176,6 +186,21 @@ async def create_job(
         elif background_url and background_url.strip():
             # Téléchargé dans le worker (progression visible)
             bg_url = background_url.strip()
+        elif background_ids and background_ids.strip():
+            try:
+                ids = json.loads(background_ids)
+            except json.JSONDecodeError as exc:
+                raise HTTPException(400, "background_ids JSON invalide.") from exc
+            if not isinstance(ids, list) or not ids:
+                raise HTTPException(400, "Liste de fonds vide.")
+            resolved_list: list[str] = []
+            for bid in ids:
+                resolved = resolve_library_id(str(bid))
+                if not resolved:
+                    raise HTTPException(400, f"Fond inconnu: {bid}")
+                resolved_list.append(str(resolved))
+            bg_paths = resolved_list
+            bg_path = resolved_list[0]
         elif background_id:
             resolved = resolve_library_id(background_id)
             if not resolved:
@@ -196,10 +221,13 @@ async def create_job(
         subtitle_style=subtitle_style,
         video_style=video_style,
         bg_path=bg_path,
+        bg_paths=bg_paths,
         background_url=bg_url,
         include_basmala=basmala,
         translation=tr,
         font_size=font_size if font_size and 12 <= font_size <= 48 else None,
+        watermark_mode=wm,
+        watermark_text=wm_text,
     )
     try:
         valider_config(cfg)
