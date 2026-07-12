@@ -66,6 +66,29 @@ export const api = {
   surahs: () => json<Surah[]>('/api/surahs'),
   styles: () =>
     json<{ subtitles: SubtitleStyle[]; video: VideoStyle[] }>('/api/styles'),
+  estimate: (params: {
+    reciter_id: number
+    surah: number
+    ayah_from: number
+    ayah_to: number
+    include_basmala: boolean
+  }) => {
+    const q = new URLSearchParams({
+      reciter_id: String(params.reciter_id),
+      surah: String(params.surah),
+      ayah_from: String(params.ayah_from),
+      ayah_to: String(params.ayah_to),
+      include_basmala: String(params.include_basmala),
+    })
+    return json<{
+      seconds: number
+      formatted: string
+      ayah_count: number
+      from_cache: number
+      estimated_ayahs: number
+      precise: boolean
+    }>(`/api/estimate?${q}`)
+  },
   backgrounds: () => json<Background[]>('/api/backgrounds'),
   searchPexels: (q: string) =>
     json<PexelsSearch>(`/api/pexels/search?q=${encodeURIComponent(q)}`),

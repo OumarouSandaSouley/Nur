@@ -54,12 +54,62 @@ class JobConfig:
     translation: str = "none"  # none | fr | en
 
 
-def verifier_ffmpeg() -> None:
-    for exe in ("ffmpeg", "ffprobe"):
-        if shutil.which(exe) is None:
-            raise RuntimeError(
-                f"'{exe}' est introuvable dans le PATH. Installez ffmpeg puis réessayez."
-            )
+def estimer_duree(
+    reciter_id: int,
+    surah: int,
+    ayah_from: int,
+    ayah_to: int,
+    include_basmala: bool = True,
+) -> dict:
+    """Estime la duree a partir du cache audio (ou approx 5s/verset)."""
+    if reciter_id not in RECITEURS:
+        raise ValueError("Reciteur invalide.")
+    if not (1 <= surah <= 114):
+        raise ValueError("Sourate invalide.")
+    max_v = NB_VERSETS[surah - 1]
+    if not (1 <= ayah_from <= ayah_to <= max_v):
+        raise ValueError("Intervalle invalide.")
+
+    dossier = RECITEURS[reciter_id]["dossier"]
+    cache_dir = CACHE_AUDIO / dossier
+    numeros = list(range(ayah_from, ayah_to + 1))
+    if include_basmala and ayah_from == 1 and surah not in (1, 9):
+        numeros = [0] + numeros
+
+    total = 0.0
+    known = 0
+    missing = 0
+    for n in numeros:
+        path = cache_dir / f"{surah:03d}{n:03d}.mp3"
+        if path.is_file() and path.stat().st_size > 1000:
+            try:
+                total += obtenir_duree(str(path))
+                known += 1
+                continue
+            except Exception:  # noqa: BLE001
+                pass
+        total += 5.0  # approx
+        missing += 1
+
+    return {
+        "seconds": round(total, 1),
+        "formatted": _format_duree(total),
+        "ayah_count": len(numeros),
+        "from_cache": known,
+        "estimated_ayahs": missing,
+        "precise": missing == 0,
+    }
+
+
+def _format_duree(seconds: float) -> str:
+    s = int(round(seconds))
+    m, sec = divmod(s, 60)
+    if m >= 60:
+        h, m = divmod(m, 60)
+        return f"{h}h {m:02d}m {sec:02d}s"
+    if m:
+        return f"{m}m {sec:02d}s"
+    return f"{sec}s"
 
 
 def nettoyer_nom(nom: str) -> str:

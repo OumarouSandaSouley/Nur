@@ -199,14 +199,17 @@ label.field input,
   font-size: 0.9rem;
 }
 
-.surah-ar {
+.estimate-chip {
   margin: 0;
-  font-family: var(--font-ar);
-  direction: rtl;
-  text-align: right;
-  color: var(--sage);
-  font-size: 1.15rem;
-  line-height: 1.3;
+  padding: 0.55rem 0.75rem;
+  background: rgba(30, 64, 54, 0.08);
+  border-radius: 10px;
+  color: var(--sage-deep);
+  font-size: 0.9rem;
+}
+
+.estimate-chip strong {
+  margin-left: 0.25rem;
 }
 
 .preset-grid {

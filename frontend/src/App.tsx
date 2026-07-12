@@ -46,6 +46,8 @@ export default function App() {
   const [job, setJob] = useState<Job | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [estimate, setEstimate] = useState<string | null>(null)
+  const [estimatePrecise, setEstimatePrecise] = useState(false)
 
   const currentSurah = useMemo(
     () => surahs.find((s) => s.number === surah),
@@ -84,6 +86,32 @@ export default function App() {
     setAyahFrom(1)
     setAyahTo(Math.min(7, currentSurah.verses))
   }, [surah]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let cancelled = false
+    const t = setTimeout(() => {
+      api
+        .estimate({
+          reciter_id: reciterId,
+          surah,
+          ayah_from: ayahFrom,
+          ayah_to: ayahTo,
+          include_basmala: includeBasmala,
+        })
+        .then((e) => {
+          if (cancelled) return
+          setEstimate(e.formatted)
+          setEstimatePrecise(e.precise)
+        })
+        .catch(() => {
+          if (!cancelled) setEstimate(null)
+        })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [reciterId, surah, ayahFrom, ayahTo, includeBasmala])
 
   useEffect(() => {
     if (!job || job.status === 'done' || job.status === 'failed') return
@@ -293,6 +321,13 @@ export default function App() {
                     <option value="en">Arabe + Anglais</option>
                   </select>
                 </label>
+                {estimate && (
+                  <p className="estimate-chip">
+                    Duree {estimatePrecise ? '' : '~'}
+                    <strong>{estimate}</strong>
+                    {!estimatePrecise && <span> (approx.)</span>}
+                  </p>
+                )}
               </div>
               <div className="nav-row">
                 <span />

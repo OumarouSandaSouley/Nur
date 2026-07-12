@@ -18,7 +18,7 @@ from .backgrounds import (
 )
 from .data import liste_reciteurs, liste_sourates
 from .jobs import manager
-from .pipeline import JobConfig, ROOT, valider_config
+from .pipeline import JobConfig, ROOT, estimer_duree, valider_config
 from .styles import liste_styles_sous_titres, liste_styles_video
 
 load_dotenv(ROOT / ".env")
@@ -55,6 +55,20 @@ def get_styles():
         "subtitles": liste_styles_sous_titres(),
         "video": liste_styles_video(),
     }
+
+
+@app.get("/api/estimate")
+def estimate_duration(
+    reciter_id: int = Query(...),
+    surah: int = Query(...),
+    ayah_from: int = Query(...),
+    ayah_to: int = Query(...),
+    include_basmala: bool = Query(True),
+):
+    try:
+        return estimer_duree(reciter_id, surah, ayah_from, ayah_to, include_basmala)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @app.get("/api/backgrounds")
