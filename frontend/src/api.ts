@@ -74,6 +74,8 @@ async function json<T>(url: string): Promise<T> {
 
 export const api = {
   reciters: () => json<Reciter[]>('/api/reciters'),
+  reciterPreviewUrl: (id: number, surah = 1, ayah = 1) =>
+    `/api/reciters/${id}/preview?surah=${surah}&ayah=${ayah}`,
   surahs: () => json<Surah[]>('/api/surahs'),
   styles: () =>
     json<{ subtitles: SubtitleStyle[]; video: VideoStyle[] }>('/api/styles'),

@@ -45,6 +45,29 @@ def get_reciters():
     return liste_reciteurs()
 
 
+@app.get("/api/reciters/{reciter_id}/preview")
+def reciter_preview(reciter_id: int, surah: int = Query(1), ayah: int = Query(1)):
+    """Stream le premier verset (telecharge si besoin) pour apercu audio."""
+    from .data import RECITEURS
+    from .pipeline import CACHE_AUDIO, EVERYAYAH_BASE, HEADERS
+    import requests as req
+
+    if reciter_id not in RECITEURS:
+        raise HTTPException(400, "Reciteur invalide.")
+    dossier = RECITEURS[reciter_id]["dossier"]
+    cache_dir = CACHE_AUDIO / dossier
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    nom = f"{surah:03d}{ayah:03d}.mp3"
+    path = cache_dir / nom
+    if not path.is_file() or path.stat().st_size < 1000:
+        url = f"{EVERYAYAH_BASE}/{dossier}/{nom}"
+        r = req.get(url, headers=HEADERS, timeout=45)
+        if r.status_code != 200 or len(r.content) < 1000:
+            raise HTTPException(404, "Audio introuvable.")
+        path.write_bytes(r.content)
+    return FileResponse(path, media_type="audio/mpeg", filename=nom)
+
+
 @app.get("/api/surahs")
 def get_surahs():
     return liste_sourates()

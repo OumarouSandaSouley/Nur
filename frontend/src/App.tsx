@@ -51,6 +51,8 @@ export default function App() {
   const [estimatePrecise, setEstimatePrecise] = useState(false)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
+  const [audioPreview, setAudioPreview] = useState<HTMLAudioElement | null>(null)
+  const [audioPlaying, setAudioPlaying] = useState(false)
 
   const currentSurah = useMemo(
     () => surahs.find((s) => s.number === surah),
@@ -274,6 +276,24 @@ export default function App() {
                     ))}
                   </select>
                 </label>
+                <button
+                  type="button"
+                  className="btn btn-ghost audio-btn"
+                  onClick={() => {
+                    if (audioPlaying && audioPreview) {
+                      audioPreview.pause()
+                      setAudioPlaying(false)
+                      return
+                    }
+                    const url = api.reciterPreviewUrl(reciterId, surah, ayahFrom)
+                    const a = new Audio(url)
+                    a.onended = () => setAudioPlaying(false)
+                    a.play().then(() => setAudioPlaying(true)).catch(() => setAudioPlaying(false))
+                    setAudioPreview(a)
+                  }}
+                >
+                  {audioPlaying ? 'Pause apercu' : 'Ecouter un verset'}
+                </button>
                 <label className="field">
                   Sourate
                   <select value={surah} onChange={(e) => setSurah(Number(e.target.value))}>
