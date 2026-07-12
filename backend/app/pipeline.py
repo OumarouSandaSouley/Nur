@@ -373,19 +373,22 @@ def _filtre_fond(video_style: str) -> str:
     if video_style == "blur":
         return f"{base},gblur=sigma=12,eq=brightness=-0.08:saturation=0.85"
     if video_style == "dark":
-        return (
-            f"{base},eq=brightness=-0.18:saturation=0.7,"
-            f"vignette=PI/4"
-        )
+        return f"{base},eq=brightness=-0.18:saturation=0.7,vignette=PI/4"
     if video_style == "kenburns":
-        # zoompan after crop; d=25*fps approx handled by -t later
         return (
             f"{base},"
-            f"zoompan=z='min(zoom+0.0004,1.12)':x='iw/2-(iw/zoom/2)':"
+            f"zoompan=z='min(zoom+0.00055,1.18)':x='iw/2-(iw/zoom/2)':"
+            f"y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps=30"
+        )
+    if video_style == "cinematic":
+        return (
+            f"{base},"
+            f"eq=contrast=1.08:brightness=-0.06:saturation=0.82,"
+            f"vignette=PI/5,"
+            f"zoompan=z='min(zoom+0.00035,1.1)':x='iw/2-(iw/zoom/2)':"
             f"y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps=30"
         )
     if video_style == "split":
-        # dark bar at bottom for subtitles
         return (
             f"{base},"
             f"drawbox=x=0:y=ih*0.72:w=iw:h=ih*0.28:color=black@0.45:t=fill"
@@ -468,6 +471,7 @@ def assembler_video_finale(
     font_name: str,
     max_text_len: int = 0,
     font_size: int | None = None,
+    audio_duration: float | None = None,
 ) -> None:
     srt_escaped = _escape_subtitles_path(chemin_srt)
     style = ass_force_style(
@@ -480,6 +484,8 @@ def assembler_video_finale(
         fonts_arg = f":fontsdir='{fonts_dir}'"
 
     filtre = f"subtitles='{srt_escaped}'{fonts_arg}:force_style='{style}'"
+    fade_out_start = max(0.0, (audio_duration or 10.0) - 1.5)
+    audio_filter = f"afade=t=in:st=0:d=1.2,afade=t=out:st={fade_out_start:.2f}:d=1.5"
 
     result = subprocess.run(
         [
@@ -491,6 +497,8 @@ def assembler_video_finale(
             str(chemin_audio),
             "-vf",
             filtre,
+            "-af",
+            audio_filter,
             "-c:v",
             "libx264",
             "-preset",
@@ -510,7 +518,7 @@ def assembler_video_finale(
         text=True,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"Assemblage final échoué : {result.stderr[-1200:]}")
+        raise RuntimeError(f"Assemblage final echoue : {result.stderr[-1200:]}")
 
 
 def generer_video(
@@ -605,6 +613,7 @@ def generer_video(
         cfg.font_name,
         max_text_len=max_text_len,
         font_size=cfg.font_size,
+        audio_duration=duree,
     )
 
     # Sidecar for history / regenerate
