@@ -756,6 +756,7 @@ export default function App() {
                     value={fontSize}
                     onChange={(e) => setFontSize(Number(e.target.value))}
                   />
+                  <span className="field-hint">14 = discret · 22 = confort · 36 = grand Reels</span>
                 </label>
                 <p className="field-label" style={{ marginTop: '0.85rem' }}>
                   Animation

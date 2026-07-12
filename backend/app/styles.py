@@ -202,22 +202,32 @@ def font_size_for_length(
     has_translation: bool = False,
     line_count: int = 0,
 ) -> int:
-    """Taille adaptive — reste lisible (plancher ~20), ne compacte que les cas extremes."""
+    """Ajuste legerement la taille ASS ; plancher confort Reels."""
     size = base
     if has_translation:
-        size = max(20, base - 2)
-    # Compactage leger seulement si vraiment necessaire
+        size = max(int(base * 0.92), base - 4)
     if line_count > 14:
-        size = min(size, max(16, base - 8))
+        size = min(size, max(42, int(base * 0.72)))
     elif line_count > 10:
-        size = min(size, max(18, base - 5))
+        size = min(size, max(48, int(base * 0.82)))
     elif line_count > 7:
-        size = min(size, max(20, base - 3))
+        size = min(size, max(52, int(base * 0.90)))
     if max_chars > 260:
-        size = min(size, max(16, size - 4))
+        size = min(size, max(42, size - 10))
     elif max_chars > 180:
-        size = min(size, max(18, size - 2))
-    return max(16, size)
+        size = min(size, max(48, size - 6))
+    return max(36, size)
+
+
+def ui_font_to_ass(ui_size: int | None, style_default: int = 26) -> int:
+    """Slider UI 14-36 → FontSize ASS lisible en vertical 1080x1920.
+
+    Avec PlayRes correct, 1 point ASS ≈ 1 px : le slider UI doit etre
+    amplifie pour du Reels (ex. 14→42, 22→66, 28→84, 36→100).
+    """
+    raw = int(ui_size) if ui_size and ui_size > 0 else int(style_default)
+    raw = max(12, min(48, raw))
+    return max(36, min(100, int(round(raw * 3.0))))
 
 
 def _center_alignment(alignment: int) -> int:

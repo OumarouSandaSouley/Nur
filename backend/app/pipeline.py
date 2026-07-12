@@ -34,6 +34,7 @@ from .styles import (
     ass_force_style,
     decorate_srt_text,
     font_size_for_length,
+    ui_font_to_ass,
     _center_alignment,
 )
 
@@ -491,18 +492,18 @@ def wrap_arabic_text(text: str, width: int = 24, max_lines: int = 0) -> str:
 
 
 def _safe_line_widths(text_len: int, has_translation: bool) -> tuple[int, int]:
-    """Largeurs pixels-safe a FontSize ~24 sur 1080 (sinon coupe a droite)."""
+    """Largeurs pour FontSize ASS ~60-70 sur 1080 (sinon debordement)."""
     if text_len > 160:
-        ar, lat = 22, 26
+        ar, lat = 14, 18
     elif text_len > 100:
-        ar, lat = 24, 28
+        ar, lat = 16, 20
     elif text_len > 60:
-        ar, lat = 26, 30
+        ar, lat = 17, 22
     else:
-        ar, lat = 28, 32
+        ar, lat = 18, 24
     if has_translation:
-        ar = max(20, ar - 2)
-        lat = max(26, lat - 2)
+        ar = max(12, ar - 1)
+        lat = max(18, lat - 1)
     return ar, lat
 
 
@@ -1110,6 +1111,7 @@ def _append_credits_to_srt(
     duration: float,
     line1: str,
     line2: str = "",
+    font_size: int = 48,
 ) -> None:
     """Ajoute une cue credits en bas (sera convertie en ASS ensuite)."""
     if not line1 or duration <= 0:
@@ -1119,13 +1121,16 @@ def _append_credits_to_srt(
     for line in raw.splitlines():
         if line.strip().isdigit():
             next_idx = max(next_idx, int(line.strip()) + 1)
+    fs1 = max(28, int(font_size * 0.72))
+    fs2 = max(24, int(font_size * 0.58))
+    bord = max(3, fs1 // 14)
     body = (
-        r"{\an2\pos(540,1785)\fnArial\fs34\bord3\shad1"
+        f"{{\\an2\\pos(540,1760)\\fnArial\\fs{fs1}\\bord{bord}\\shad2"
         r"\1c&H00FFFFFF&\3c&H00000000&}"
         f"{line1}"
     )
     if line2:
-        body += r"\N{\fs28}" + line2
+        body += f"\\N{{\\fs{fs2}}}{line2}"
     debut = secondes_vers_srt_temps(0)
     fin = secondes_vers_srt_temps(duration)
     block = f"{next_idx}\n{debut} --> {fin}\n{body}\n"
@@ -1151,38 +1156,53 @@ def assembler_video_finale(
     if not font_name:
         font_name = resolve_arabic_font_name()
 
-    if show_credits and credit_line1 and audio_duration:
-        _append_credits_to_srt(
-            chemin_srt, float(audio_duration), credit_line1, credit_line2 or ""
-        )
-
-    reserve = 240 if show_credits and credit_line1 else (170 if has_translation else 0)
+    reserve = 300 if show_credits and credit_line1 else (200 if has_translation else 0)
     style = SUBTITLE_STYLES.get(subtitle_style, SUBTITLE_STYLES["classic"])
 
-    base = int(font_size or style["font_size"])
+    # Slider UI → taille ASS reelle (22 UI ≈ 53 ASS sur 1080x1920)
+    base = ui_font_to_ass(font_size, style_default=int(style["font_size"]))
     size = font_size_for_length(
         base, max_text_len, has_translation=has_translation, line_count=line_count
     )
     alignment = _center_alignment(int(style["alignment"]))
     margin_v = int(style["margin_v"])
     if has_translation:
-        margin_v = max(margin_v, 160)
-    if base >= 30 and alignment == 5:
+        margin_v = max(margin_v, 200)
+    if size >= 60 and alignment == 5:
         alignment = 2
-        margin_v = max(margin_v, 180)
+        margin_v = max(margin_v, 220)
     if line_count > 8:
         alignment = 2
-        margin_v = max(margin_v, 180)
+        margin_v = max(margin_v, 220)
     if reserve:
         margin_v = max(margin_v, reserve)
-    outline = max(int(style["outline"]), 2)
-    shadow = max(int(style.get("shadow", 0)), 1)
+    outline = max(2, min(5, size // 18))
+    shadow = max(1, int(style.get("shadow", 0)) or 1)
+
+    if show_credits and credit_line1 and audio_duration:
+        _append_credits_to_srt(
+            chemin_srt,
+            float(audio_duration),
+            credit_line1,
+            credit_line2 or "",
+            font_size=size,
+        )
 
     events = _parse_srt_events(chemin_srt)
+    fr_y = 1650 if show_credits else 1700
+    fr_fs = max(28, int(size * 0.88))
+    fixed_events: list[tuple[float, float, str]] = []
+    for start, end, text in events:
+        if r"\pos(540,1520)" in text:
+            text = text.replace(r"\pos(540,1520)", rf"\pos(540,{fr_y})")
+        if r"{\fnArial}" in text:
+            text = text.replace(r"{\fnArial}", rf"{{\fnArial\fs{fr_fs}}}", 1)
+        fixed_events.append((start, end, text))
+
     chemin_ass = chemin_srt.with_suffix(".ass")
     ecrire_ass(
         chemin_ass,
-        events,
+        fixed_events,
         font_name=font_name,
         font_size=size,
         primary=style["primary"],
@@ -1197,7 +1217,6 @@ def assembler_video_finale(
 
     ass_escaped = _escape_subtitles_path(chemin_ass)
     fonts_arg = _fontsdir_arg()
-    # Filtre ass= respecte PlayResX/Y du fichier (contrairement a SRT+force_style)
     filtre = f"ass='{ass_escaped}'{fonts_arg}"
 
     fade_out_start = max(0.0, (audio_duration or 10.0) - 1.5)
