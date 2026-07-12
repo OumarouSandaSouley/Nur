@@ -46,6 +46,7 @@ export default function App() {
   const [selectedPexelsUrl, setSelectedPexelsUrl] = useState('')
 
   const [job, setJob] = useState<Job | null>(null)
+  const [queue, setQueue] = useState<Job[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [estimate, setEstimate] = useState<string | null>(null)
@@ -132,9 +133,11 @@ export default function App() {
   }, [reciterId, surah, ayahFrom, ayahTo, includeBasmala])
 
   useEffect(() => {
-    if (!job || job.status === 'done' || job.status === 'failed') return
+    if (!job || job.status === 'done' || job.status === 'failed' || job.status === 'cancelled')
+      return
     const t = setInterval(() => {
       api.job(job.id).then(setJob).catch(() => undefined)
+      api.listJobs().then(setQueue).catch(() => undefined)
     }, 1200)
     return () => clearInterval(t)
   }, [job])
@@ -640,6 +643,31 @@ export default function App() {
                 </button>
               </div>
               {error && <p className="error">{error}</p>}
+              {queue.some((j) => j.status === 'queued' || j.status === 'running') && (
+                <div className="queue-box">
+                  <h3>File d&apos;attente</h3>
+                  {queue
+                    .filter((j) => j.status === 'queued' || j.status === 'running')
+                    .map((j) => (
+                      <div key={j.id} className="queue-row">
+                        <span>
+                          {j.id.slice(0, 6)} · {j.status} · {j.progress}%
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={async () => {
+                            const updated = await api.cancelJob(j.id)
+                            if (job?.id === j.id) setJob(updated)
+                            setQueue(await api.listJobs())
+                          }}
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
             </section>
           )}
 

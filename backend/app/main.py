@@ -215,6 +215,14 @@ def list_jobs():
     return [j.to_dict() for j in manager.list_recent()]
 
 
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: str):
+    job = manager.cancel(job_id)
+    if not job:
+        raise HTTPException(404, "Job introuvable.")
+    return job.to_dict()
+
+
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: str):
     job = manager.get(job_id)

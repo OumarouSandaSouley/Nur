@@ -39,6 +39,7 @@ class Job:
     output_path: str | None = None
     output_name: str | None = None
     error: str | None = None
+    cancel_requested: bool = False
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
@@ -94,6 +95,24 @@ class JobManager:
             self._cv.notify()
         return job
 
+    def cancel(self, job_id: str) -> Job | None:
+        with self._cv:
+            job = self._jobs.get(job_id)
+            if not job:
+                return None
+            if job.status in ("done", "failed", "cancelled"):
+                return job
+            if job.status == "queued":
+                if job_id in self._queue:
+                    self._queue.remove(job_id)
+                job.status = "cancelled"
+                job.message = "Annule"
+                job.stage = "cancelled"
+                return job
+            job.cancel_requested = True
+            job.message = "Annulation..."
+            return job
+
     def get(self, job_id: str) -> Job | None:
         with self._lock:
             return self._jobs.get(job_id)
@@ -122,6 +141,8 @@ class JobManager:
         job_dir = JOBS_DIR / job_id
 
         def on_progress(stage: str, pct: int, message: str) -> None:
+            if job.cancel_requested:
+                raise RuntimeError("Job annule par l'utilisateur")
             job.status = "running"
             job.stage = stage
             job.progress = pct
@@ -133,6 +154,8 @@ class JobManager:
             job.message = "Demarrage..."
             job.progress = 1
             output = generer_video(job.config, job_dir, on_progress=on_progress)
+            if job.cancel_requested:
+                raise RuntimeError("Job annule par l'utilisateur")
             job.status = "done"
             job.progress = 100
             job.stage = "done"
@@ -141,12 +164,19 @@ class JobManager:
             job.output_name = output.name
             _log(f"[jobs] done {job_id} -> {output.name}")
         except Exception as exc:  # noqa: BLE001
-            job.status = "failed"
-            job.stage = "failed"
-            job.error = str(exc)
-            job.message = "Echec de la generation"
-            _log(f"[jobs] FAIL {job_id}: {exc}")
-            traceback.print_exc()
+            if "annule" in str(exc).lower() or job.cancel_requested:
+                job.status = "cancelled"
+                job.stage = "cancelled"
+                job.message = "Annule"
+                job.error = None
+                _log(f"[jobs] cancelled {job_id}")
+            else:
+                job.status = "failed"
+                job.stage = "failed"
+                job.error = str(exc)
+                job.message = "Echec de la generation"
+                _log(f"[jobs] FAIL {job_id}: {exc}")
+                traceback.print_exc()
         finally:
             for name in ("audio_complet.wav", "fond_pret.mp4"):
                 p = job_dir / name

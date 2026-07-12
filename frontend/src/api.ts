@@ -59,7 +59,7 @@ export type HistoryItem = {
 
 export type Job = {
   id: string
-  status: 'queued' | 'running' | 'done' | 'failed'
+  status: 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
   progress: number
   stage: string
   message: string
@@ -142,6 +142,12 @@ export const api = {
         throw new Error(text)
       }
     }
+    return res.json() as Promise<Job>
+  },
+  listJobs: () => json<Job[]>('/api/jobs'),
+  cancelJob: async (id: string) => {
+    const res = await fetch(`/api/jobs/${id}/cancel`, { method: 'POST' })
+    if (!res.ok) throw new Error(await res.text())
     return res.json() as Promise<Job>
   },
   downloadUrl: (id: string) => `/api/jobs/${id}/download`,
