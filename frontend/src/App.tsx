@@ -29,6 +29,7 @@ export default function App() {
   const [ayahFrom, setAyahFrom] = useState(1)
   const [ayahTo, setAyahTo] = useState(7)
   const [includeBasmala, setIncludeBasmala] = useState(true)
+  const [translation, setTranslation] = useState<'none' | 'fr' | 'en'>('none')
   const [subtitleStyle, setSubtitleStyle] = useState('classic')
   const [videoStyle, setVideoStyle] = useState('clean')
 
@@ -135,6 +136,7 @@ export default function App() {
       form.append('subtitle_style', subtitleStyle)
       form.append('video_style', videoStyle)
       form.append('include_basmala', String(includeBasmala))
+      form.append('translation', translation)
 
       if (bgMode === 'url' && backgroundUrl.trim()) {
         form.append('background_url', backgroundUrl.trim())
@@ -279,6 +281,17 @@ export default function App() {
                     disabled={surah === 1 || surah === 9 || ayahFrom !== 1}
                   />
                   Inclure la basmala
+                </label>
+                <label className="field">
+                  Traduction sous-titres
+                  <select
+                    value={translation}
+                    onChange={(e) => setTranslation(e.target.value as 'none' | 'fr' | 'en')}
+                  >
+                    <option value="none">Arabe seul</option>
+                    <option value="fr">Arabe + Francais</option>
+                    <option value="en">Arabe + Anglais</option>
+                  </select>
                 </label>
               </div>
               <div className="nav-row">
@@ -505,6 +518,12 @@ export default function App() {
                   <span>Sourate</span>
                   <span>
                     {currentSurah?.number}. {currentSurah?.name_fr} ({ayahFrom}–{ayahTo})
+                  </span>
+                </li>
+                <li>
+                  <span>Traduction</span>
+                  <span>
+                    {translation === 'none' ? 'Aucune' : translation.toUpperCase()}
                   </span>
                 </li>
                 <li>

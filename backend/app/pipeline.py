@@ -15,7 +15,10 @@ import requests
 
 from .data import (
     API_TEXTE_ARABE,
+    API_TRADUCTION,
     BISMILLAH_ARABE,
+    BISMILLAH_EN,
+    BISMILLAH_FR,
     EVERYAYAH_BASE,
     HAUTEUR_SORTIE,
     HEADERS,
@@ -23,6 +26,7 @@ from .data import (
     NB_VERSETS,
     RECITEURS,
     SOURATES,
+    TRADUCTIONS,
 )
 from .styles import VIDEO_STYLES, ass_force_style
 
@@ -47,6 +51,7 @@ class JobConfig:
     background_url: str | None = None
     include_basmala: bool = True
     font_name: str = "Traditional Arabic"
+    translation: str = "none"  # none | fr | en
 
 
 def verifier_ffmpeg() -> None:
@@ -78,9 +83,11 @@ def valider_config(cfg: JobConfig) -> None:
     ):
         raise ValueError("Style de sous-titres invalide.")
     if cfg.video_style not in VIDEO_STYLES:
-        raise ValueError("Style vidéo invalide.")
+        raise ValueError("Style video invalide.")
+    if cfg.translation not in TRADUCTIONS:
+        raise ValueError("Traduction invalide (none/fr/en).")
     if cfg.bg_path and not os.path.isfile(cfg.bg_path):
-        raise ValueError(f"Vidéo de fond introuvable : {cfg.bg_path}")
+        raise ValueError(f"Video de fond introuvable : {cfg.bg_path}")
 
 
 def telecharger_versets_audio(
@@ -130,6 +137,45 @@ def recuperer_textes_arabes(session: requests.Session, numero_sourate: int) -> d
     reponse.raise_for_status()
     data = reponse.json()
     return {a["numberInSurah"]: a["text"] for a in data["data"]["ayahs"]}
+
+
+def recuperer_traduction(
+    session: requests.Session, numero_sourate: int, lang: str
+) -> dict[int, str]:
+    edition = TRADUCTIONS.get(lang)
+    if not edition:
+        return {}
+    url = API_TRADUCTION.format(numero=numero_sourate, edition=edition)
+    reponse = session.get(url, headers=HEADERS, timeout=30)
+    reponse.raise_for_status()
+    data = reponse.json()
+    return {a["numberInSurah"]: a["text"] for a in data["data"]["ayahs"]}
+
+
+def wrap_latin_text(text: str, width: int = 42, max_lines: int = 3) -> str:
+    text = " ".join(text.split())
+    if len(text) <= width:
+        return text
+    words = text.split(" ")
+    lines: list[str] = []
+    current = ""
+    for i, word in enumerate(words):
+        trial = f"{current} {word}".strip() if current else word
+        if len(trial) <= width:
+            current = trial
+            continue
+        if current:
+            lines.append(current)
+        current = word
+        if len(lines) >= max_lines - 1:
+            rest = " ".join([current] + words[i + 1 :])
+            if len(rest) > width * 2:
+                rest = rest[: width * 2 - 1] + "..."
+            lines.append(rest)
+            return "\n".join(lines)
+    if current:
+        lines.append(current)
+    return "\n".join(lines[:max_lines])
 
 
 def obtenir_duree(chemin_fichier: str) -> float:
@@ -194,6 +240,8 @@ def construire_srt_et_audio(
     dossier_tmp: Path,
     chemin_srt: Path,
     chemin_audio_final: Path,
+    traductions: dict[int, str] | None = None,
+    translation_lang: str = "none",
 ) -> tuple[float, int]:
     chemin_liste = dossier_tmp / "liste_concat.txt"
     with chemin_liste.open("w", encoding="utf-8") as f:
@@ -223,6 +271,7 @@ def construire_srt_et_audio(
     t = 0.0
     index_srt = 1
     max_len = 0
+    traductions = traductions or {}
     for numero_verset, chemin in versets:
         duree = obtenir_duree(chemin)
         texte = (
@@ -231,9 +280,17 @@ def construire_srt_et_audio(
             else textes_arabes.get(numero_verset, "")
         )
         max_len = max(max_len, len(texte))
-        # Plus le verset est long, plus les lignes sont courtes
         width = 28 if len(texte) > 100 else (32 if len(texte) > 60 else 36)
-        texte_wrap = wrap_arabic_text(texte, width=width, max_lines=4)
+        texte_wrap = wrap_arabic_text(texte, width=width, max_lines=3 if traductions else 4)
+
+        if translation_lang != "none":
+            if numero_verset == 0:
+                tr = BISMILLAH_FR if translation_lang == "fr" else BISMILLAH_EN
+            else:
+                tr = traductions.get(numero_verset, "")
+            if tr:
+                texte_wrap = f"{texte_wrap}\n{wrap_latin_text(tr, width=40, max_lines=2)}"
+
         debut = secondes_vers_srt_temps(t)
         fin = secondes_vers_srt_temps(t + duree)
         entrees_srt.append(f"{index_srt}\n{debut} --> {fin}\n{texte_wrap}\n")
@@ -437,12 +494,22 @@ def generer_video(
 
     progress("text", 55, "Recuperation du texte arabe...")
     textes = recuperer_textes_arabes(session, cfg.surah)
+    traductions: dict[int, str] = {}
+    if cfg.translation != "none":
+        progress("text", 57, f"Traduction {cfg.translation.upper()}...")
+        traductions = recuperer_traduction(session, cfg.surah, cfg.translation)
 
     progress("audio", 60, "Concatenation audio + sous-titres...")
     chemin_srt = job_dir / "sous_titres.srt"
     chemin_audio = job_dir / "audio_complet.wav"
     duree, max_text_len = construire_srt_et_audio(
-        versets, textes, job_dir, chemin_srt, chemin_audio
+        versets,
+        textes,
+        job_dir,
+        chemin_srt,
+        chemin_audio,
+        traductions=traductions,
+        translation_lang=cfg.translation,
     )
 
     progress("background", 70, "Preparation du fond...")

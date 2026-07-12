@@ -144,8 +144,16 @@ SOURATES = [
 ]
 
 BISMILLAH_ARABE = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"
+BISMILLAH_FR = "Au nom d'Allah, le Tout Misericordieux, le Tres Misericordieux."
+BISMILLAH_EN = "In the name of Allah, the Entirely Merciful, the Especially Merciful."
 EVERYAYAH_BASE = "https://everyayah.com/data"
 API_TEXTE_ARABE = "https://api.alquran.cloud/v1/surah/{numero}/quran-uthmani"
+API_TRADUCTION = "https://api.alquran.cloud/v1/surah/{numero}/{edition}"
+TRADUCTIONS = {
+    "none": None,
+    "fr": "fr.hamidullah",
+    "en": "en.sahih",
+}
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; QuranVideoStudio/1.0; usage personnel)"}
 
 LARGEUR_SORTIE = 1080

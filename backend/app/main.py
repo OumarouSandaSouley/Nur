@@ -95,6 +95,7 @@ async def create_job(
     subtitle_style: str = Form("classic"),
     video_style: str = Form("clean"),
     include_basmala: str = Form("true"),
+    translation: str = Form("none"),
     background_id: str | None = Form(None),
     background_url: str | None = Form(None),
     background: UploadFile | None = File(None),
@@ -102,6 +103,9 @@ async def create_job(
     bg_path: str | None = None
     basmala = include_basmala.strip().lower() in ("1", "true", "yes", "on")
     bg_url: str | None = None
+    tr = translation.strip().lower() if translation else "none"
+    if tr not in ("none", "fr", "en"):
+        raise HTTPException(400, "Traduction invalide (none/fr/en).")
 
     try:
         if background and background.filename:
@@ -134,6 +138,7 @@ async def create_job(
         bg_path=bg_path,
         background_url=bg_url,
         include_basmala=basmala,
+        translation=tr,
     )
     try:
         valider_config(cfg)
