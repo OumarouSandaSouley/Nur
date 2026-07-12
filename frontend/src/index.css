@@ -654,3 +654,49 @@ label.field input,
     order: -1;
   }
 }
+
+.estimate-chip {
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  background: rgba(30, 64, 54, 0.08);
+  border-radius: 10px;
+  color: var(--sage-deep);
+  font-size: 0.9rem;
+}
+
+.surah-ar {
+  margin: 0;
+  font-family: var(--font-ar);
+  direction: rtl;
+  text-align: right;
+  color: var(--sage);
+  font-size: 1.15rem;
+}
+
+.audio-btn {
+  align-self: flex-start;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.9rem;
+}
+
+.queue-box {
+  margin-top: 0.85rem;
+  padding: 0.65rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 10px;
+}
+
+.queue-box h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.85rem;
+  color: var(--sage-deep);
+}
+
+.queue-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.25rem 0;
+}
