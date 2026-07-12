@@ -32,6 +32,7 @@ export default function App() {
   const [includeBasmala, setIncludeBasmala] = useState(true)
   const [translation, setTranslation] = useState<'none' | 'fr' | 'en'>('none')
   const [subtitleStyle, setSubtitleStyle] = useState('classic')
+  const [fontSize, setFontSize] = useState(24)
   const [videoStyle, setVideoStyle] = useState('clean')
 
   const [bgMode, setBgMode] = useState<'url' | 'search' | 'upload' | 'library'>('search')
@@ -179,6 +180,7 @@ export default function App() {
       form.append('ayah_from', String(ayahFrom))
       form.append('ayah_to', String(ayahTo))
       form.append('subtitle_style', subtitleStyle)
+      form.append('font_size', String(fontSize))
       form.append('video_style', videoStyle)
       form.append('include_basmala', String(includeBasmala))
       form.append('translation', translation)
@@ -399,6 +401,16 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              <label className="field" style={{ marginTop: '0.75rem' }}>
+                Taille du texte ({fontSize})
+                <input
+                  type="range"
+                  min={14}
+                  max={40}
+                  value={fontSize}
+                  onChange={(e) => setFontSize(Number(e.target.value))}
+                />
+              </label>
               <div className="nav-row">
                 <button type="button" className="btn btn-ghost" onClick={() => setStep(0)}>
                   Retour

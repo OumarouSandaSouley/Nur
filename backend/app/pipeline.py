@@ -28,7 +28,7 @@ from .data import (
     SOURATES,
     TRADUCTIONS,
 )
-from .styles import VIDEO_STYLES, ass_force_style
+from .styles import VIDEO_STYLES, ass_force_style, decorate_srt_text
 
 ProgressCallback = Callable[[str, int, str], None]
 
@@ -52,6 +52,7 @@ class JobConfig:
     include_basmala: bool = True
     font_name: str = "Traditional Arabic"
     translation: str = "none"  # none | fr | en
+    font_size: int | None = None
 
 
 def estimer_duree(
@@ -138,6 +139,9 @@ def valider_config(cfg: JobConfig) -> None:
         "center",
         "soft",
         "large",
+        "shadow",
+        "banner",
+        "fade",
     ):
         raise ValueError("Style de sous-titres invalide.")
     if cfg.video_style not in VIDEO_STYLES:
@@ -300,6 +304,7 @@ def construire_srt_et_audio(
     chemin_audio_final: Path,
     traductions: dict[int, str] | None = None,
     translation_lang: str = "none",
+    subtitle_style: str = "classic",
 ) -> tuple[float, int]:
     chemin_liste = dossier_tmp / "liste_concat.txt"
     with chemin_liste.open("w", encoding="utf-8") as f:
@@ -348,6 +353,8 @@ def construire_srt_et_audio(
                 tr = traductions.get(numero_verset, "")
             if tr:
                 texte_wrap = f"{texte_wrap}\n{wrap_latin_text(tr, width=40, max_lines=2)}"
+
+        texte_wrap = decorate_srt_text(texte_wrap, subtitle_style)
 
         debut = secondes_vers_srt_temps(t)
         fin = secondes_vers_srt_temps(t + duree)
@@ -460,9 +467,12 @@ def assembler_video_finale(
     subtitle_style: str,
     font_name: str,
     max_text_len: int = 0,
+    font_size: int | None = None,
 ) -> None:
     srt_escaped = _escape_subtitles_path(chemin_srt)
-    style = ass_force_style(subtitle_style, font_name, max_text_len=max_text_len)
+    style = ass_force_style(
+        subtitle_style, font_name, max_text_len=max_text_len, font_size_override=font_size
+    )
 
     fonts_arg = ""
     if FONTS_DIR.is_dir() and any(FONTS_DIR.glob("*.ttf")):
@@ -568,6 +578,7 @@ def generer_video(
         chemin_audio,
         traductions=traductions,
         translation_lang=cfg.translation,
+        subtitle_style=cfg.subtitle_style,
     )
 
     progress("background", 70, "Preparation du fond...")
@@ -593,6 +604,7 @@ def generer_video(
         cfg.subtitle_style,
         cfg.font_name,
         max_text_len=max_text_len,
+        font_size=cfg.font_size,
     )
 
     # Sidecar for history / regenerate

@@ -134,6 +134,7 @@ async def create_job(
     video_style: str = Form("clean"),
     include_basmala: str = Form("true"),
     translation: str = Form("none"),
+    font_size: int | None = Form(None),
     background_id: str | None = Form(None),
     background_url: str | None = Form(None),
     background: UploadFile | None = File(None),
@@ -177,6 +178,7 @@ async def create_job(
         background_url=bg_url,
         include_basmala=basmala,
         translation=tr,
+        font_size=font_size if font_size and 12 <= font_size <= 48 else None,
     )
     try:
         valider_config(cfg)
