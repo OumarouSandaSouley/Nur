@@ -305,6 +305,62 @@ def _paginate_lines(
     return pages
 
 
+def _paginate_bilingual(
+    ar_lines: list[str],
+    tr_lines: list[str],
+    duration: float,
+    max_lines_on_screen: int = 5,
+) -> list[list[str]]:
+    """Pages avec arabe en haut + traduction en bas (jamais sequentiel)."""
+    if not tr_lines:
+        return _paginate_lines(ar_lines, duration, max_lines_on_screen)
+    if not ar_lines:
+        return _paginate_lines(tr_lines, duration, max_lines_on_screen)
+
+    # 1 ligne reservee au separateur vide entre AR et FR/EN
+    budget = max(2, max_lines_on_screen - 1)
+    # Repartition visuelle : un peu plus d'arabe si possible
+    ar_share = max(1, (budget + 1) // 2)
+    tr_share = max(1, budget - ar_share)
+
+    n_pages = max(
+        (len(ar_lines) + ar_share - 1) // ar_share,
+        (len(tr_lines) + tr_share - 1) // tr_share,
+        1,
+    )
+    # Si la duree est courte, reduire le nombre de pages (lignes plus denses)
+    if duration > 0:
+        max_by_time = max(1, int(duration / 1.4))
+        if n_pages > max_by_time:
+            n_pages = max_by_time
+
+    # Recalcule parts egales pour remplir n_pages
+    ar_per = max(1, (len(ar_lines) + n_pages - 1) // n_pages)
+    tr_per = max(1, (len(tr_lines) + n_pages - 1) // n_pages)
+    # Si trop de lignes a l'ecran, ajoute des pages
+    while ar_per + tr_per > budget and n_pages < 40:
+        n_pages += 1
+        ar_per = max(1, (len(ar_lines) + n_pages - 1) // n_pages)
+        tr_per = max(1, (len(tr_lines) + n_pages - 1) // n_pages)
+
+    pages: list[list[str]] = []
+    for i in range(n_pages):
+        ar_chunk = ar_lines[i * ar_per : (i + 1) * ar_per]
+        tr_chunk = tr_lines[i * tr_per : (i + 1) * tr_per]
+        if not ar_chunk and not tr_chunk:
+            continue
+        page: list[str] = []
+        if ar_chunk:
+            page.extend(ar_chunk)
+        if ar_chunk and tr_chunk:
+            page.append("")
+        if tr_chunk:
+            page.extend(tr_chunk)
+        pages.append(page)
+
+    return pages or [[]]
+
+
 def construire_srt_et_audio(
     versets: list[tuple[int, str]],
     textes_arabes: dict[int, str],
@@ -368,17 +424,16 @@ def construire_srt_et_audio(
                 max_len = max(max_len, len(tr))
                 tr_lines = wrap_to_lines(tr, lat_w)
 
-        # Bloc combine : arabe puis traduction (sep. visuelle)
-        combined = list(ar_lines)
+        # Pages bilingues : toujours arabe en haut, traduction en bas
         if tr_lines:
-            combined.append("")  # ligne vide entre arabe et FR/EN
-            combined.extend(tr_lines)
-
-        pages = _paginate_lines(
-            combined,
-            duree,
-            max_lines_on_screen=5 if has_tr else 6,
-        )
+            pages = _paginate_bilingual(
+                ar_lines,
+                tr_lines,
+                duree,
+                max_lines_on_screen=5,
+            )
+        else:
+            pages = _paginate_lines(ar_lines, duree, max_lines_on_screen=6)
         page_dur = duree / len(pages) if pages else duree
 
         for page in pages:
