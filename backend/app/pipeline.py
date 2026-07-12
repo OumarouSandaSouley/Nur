@@ -431,6 +431,8 @@ def _paginate_bilingual(
     tr_lines: list[str],
     duration: float,
     max_lines_on_screen: int = 5,
+    ar_per_page: int | None = None,
+    tr_per_page: int | None = None,
 ) -> list[list[str]]:
     """Pages avec arabe en haut + traduction en bas (jamais sequentiel)."""
     if not tr_lines:
@@ -440,34 +442,37 @@ def _paginate_bilingual(
 
     # 1 ligne reservee au separateur vide entre AR et FR/EN
     budget = max(2, max_lines_on_screen - 1)
-    # Repartition visuelle : un peu plus d'arabe si possible
-    ar_share = max(1, (budget + 1) // 2)
-    tr_share = max(1, budget - ar_share)
+    if ar_per_page is None:
+        ar_per_page = max(1, (budget + 1) // 2)
+    if tr_per_page is None:
+        tr_per_page = max(1, budget - ar_per_page)
+    # Ne jamais depasser le budget ecran
+    while ar_per_page + tr_per_page > budget and ar_per_page > 1:
+        ar_per_page -= 1
+    while ar_per_page + tr_per_page > budget and tr_per_page > 1:
+        tr_per_page -= 1
 
     n_pages = max(
-        (len(ar_lines) + ar_share - 1) // ar_share,
-        (len(tr_lines) + tr_share - 1) // tr_share,
+        (len(ar_lines) + ar_per_page - 1) // ar_per_page,
+        (len(tr_lines) + tr_per_page - 1) // tr_per_page,
         1,
     )
-    # Si la duree est courte, reduire le nombre de pages (lignes plus denses)
+    # Evite des pages trop courtes (<0.85s), sans re-densifier trop
     if duration > 0:
-        max_by_time = max(1, int(duration / 1.4))
+        max_by_time = max(1, int(duration / 0.85))
         if n_pages > max_by_time:
             n_pages = max_by_time
-
-    # Recalcule parts egales pour remplir n_pages
-    ar_per = max(1, (len(ar_lines) + n_pages - 1) // n_pages)
-    tr_per = max(1, (len(tr_lines) + n_pages - 1) // n_pages)
-    # Si trop de lignes a l'ecran, ajoute des pages
-    while ar_per + tr_per > budget and n_pages < 40:
-        n_pages += 1
-        ar_per = max(1, (len(ar_lines) + n_pages - 1) // n_pages)
-        tr_per = max(1, (len(tr_lines) + n_pages - 1) // n_pages)
+            ar_per_page = max(1, (len(ar_lines) + n_pages - 1) // n_pages)
+            tr_per_page = max(1, (len(tr_lines) + n_pages - 1) // n_pages)
+            while ar_per_page + tr_per_page > budget and n_pages < 60:
+                n_pages += 1
+                ar_per_page = max(1, (len(ar_lines) + n_pages - 1) // n_pages)
+                tr_per_page = max(1, (len(tr_lines) + n_pages - 1) // n_pages)
 
     pages: list[list[str]] = []
     for i in range(n_pages):
-        ar_chunk = ar_lines[i * ar_per : (i + 1) * ar_per]
-        tr_chunk = tr_lines[i * tr_per : (i + 1) * tr_per]
+        ar_chunk = ar_lines[i * ar_per_page : (i + 1) * ar_per_page]
+        tr_chunk = tr_lines[i * tr_per_page : (i + 1) * tr_per_page]
         if not ar_chunk and not tr_chunk:
             continue
         page: list[str] = []
@@ -546,28 +551,31 @@ def construire_srt_et_audio(
                 max_len = max(max_len, len(tr))
                 tr_lines = wrap_to_lines(tr, lat_w)
 
-        # Toujours AR en haut + TR en bas.
-        # "block" = autant que possible sur un ecran (sans depasser).
-        # "pages" = pages plus courtes.
+        # Progressif = petites pages (2 AR + 2 FR).
+        # Etendu = un peu plus de texte, toujours AR+FR ensemble.
         mode = (long_verse_mode or "pages").strip().lower()
-        max_screen = 8 if mode == "block" else 5
         if tr_lines:
-            combined_len = len(ar_lines) + 1 + len(tr_lines)
-            if mode == "block" and combined_len <= max_screen:
-                page = list(ar_lines) + [""] + list(tr_lines)
-                pages = [page]
+            if mode == "block":
+                pages = _paginate_bilingual(
+                    ar_lines,
+                    tr_lines,
+                    duree,
+                    max_lines_on_screen=6,
+                    ar_per_page=2,
+                    tr_per_page=2,
+                )
             else:
                 pages = _paginate_bilingual(
                     ar_lines,
                     tr_lines,
                     duree,
-                    max_lines_on_screen=max_screen,
+                    max_lines_on_screen=4,
+                    ar_per_page=2,
+                    tr_per_page=1,
                 )
         else:
-            if mode == "block" and len(ar_lines) <= max_screen:
-                pages = [list(ar_lines)]
-            else:
-                pages = _paginate_lines(ar_lines, duree, max_lines_on_screen=max_screen)
+            max_screen = 4 if mode == "block" else 3
+            pages = _paginate_lines(ar_lines, duree, max_lines_on_screen=max_screen)
         page_dur = duree / len(pages) if pages else duree
 
         for page in pages:
