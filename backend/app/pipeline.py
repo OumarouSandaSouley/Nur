@@ -112,6 +112,14 @@ def _format_duree(seconds: float) -> str:
     return f"{sec}s"
 
 
+def verifier_ffmpeg() -> None:
+    for exe in ("ffmpeg", "ffprobe"):
+        if shutil.which(exe) is None:
+            raise RuntimeError(
+                f"'{exe}' est introuvable dans le PATH. Installez ffmpeg puis reessayez."
+            )
+
+
 def nettoyer_nom(nom: str) -> str:
     return re.sub(r'[\\/*?:"<>|]', "", nom).strip()
 
