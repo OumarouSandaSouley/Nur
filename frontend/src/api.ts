@@ -36,10 +36,35 @@ export type SubtitleAnim = {
 export type Background = {
   id: string
   name: string
-  source: 'library' | 'upload'
+  source: 'library' | 'upload' | 'url'
   path: string
   duration?: number | null
   thumb_url?: string | null
+}
+
+export type AudioFile = {
+  name: string
+  ayah: number | null
+  kind: 'verse' | 'basmala' | 'full'
+  size: number
+  duration?: number | null
+  play_url: string
+}
+
+export type AudioSurah = {
+  surah: number
+  name_fr: string
+  name_ar: string
+  files: AudioFile[]
+}
+
+export type AudioReciterGroup = {
+  reciter_id: number
+  nom: string
+  dossier: string
+  file_count: number
+  total_bytes: number
+  surahs: AudioSurah[]
 }
 
 export type PexelsVideo = {
@@ -122,6 +147,15 @@ export const api = {
   backgrounds: () => json<Background[]>('/api/backgrounds'),
   searchPexels: (q: string) =>
     json<PexelsSearch>(`/api/pexels/search?q=${encodeURIComponent(q)}`),
+  importBackground: async (url: string, name = '') => {
+    const form = new FormData()
+    form.append('url', url)
+    if (name) form.append('name', name)
+    const res = await fetch('/api/backgrounds/import', { method: 'POST', body: form })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json() as Promise<Background>
+  },
+  audioCache: () => json<AudioReciterGroup[]>('/api/audio'),
   upload: async (file: File) => {
     const form = new FormData()
     form.append('background', file)

@@ -21,9 +21,10 @@ VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv", ".m4v"}
 
 
 def list_library() -> list[dict]:
-    """Fonds assets + uploads precedents, avec duree et miniature."""
+    """Fonds assets + uploads + telechargements URL/Pexels."""
     ASSETS_FONDS.mkdir(parents=True, exist_ok=True)
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    CACHE_URLS.mkdir(parents=True, exist_ok=True)
     thumbs = ROOT / "cache" / "thumbs"
     thumbs.mkdir(parents=True, exist_ok=True)
     items: list[dict] = []
@@ -45,7 +46,7 @@ def list_library() -> list[dict]:
                 pass
         return {
             "id": item_id,
-            "name": p.name if source == "upload" else p.stem,
+            "name": p.name if source in ("upload", "url") else p.stem,
             "source": source,
             "path": str(p),
             "duration": duration,
@@ -59,6 +60,10 @@ def list_library() -> list[dict]:
     for p in sorted(UPLOADS_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
         if p.suffix.lower() in VIDEO_EXTS:
             items.append(enrich(p, "upload", f"upload:{p.name}"))
+
+    for p in sorted(CACHE_URLS.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
+        if p.suffix.lower() in VIDEO_EXTS:
+            items.append(enrich(p, "url", f"url:{p.name}"))
     return items
 
 
@@ -88,9 +93,9 @@ def delete_library_item(item_id: str) -> bool:
     path = resolve_library_id(item_id)
     if not path or not path.is_file():
         return False
-    # only allow deleting uploads, not assets
-    if not str(path).startswith(str(UPLOADS_DIR)):
-        raise ValueError("Seuls les uploads peuvent etre supprimes.")
+    # assets locaux non supprimables
+    if str(path).startswith(str(ASSETS_FONDS.resolve())):
+        raise ValueError("Les fonds assets ne peuvent pas etre supprimes.")
     path.unlink(missing_ok=True)
     thumb = ROOT / "cache" / "thumbs" / f"{path.stem}.jpg"
     thumb.unlink(missing_ok=True)
@@ -99,13 +104,21 @@ def delete_library_item(item_id: str) -> bool:
 
 def resolve_library_id(item_id: str) -> Path | None:
     if ":" not in item_id:
-        for folder in (ASSETS_FONDS, UPLOADS_DIR):
+        for folder in (ASSETS_FONDS, UPLOADS_DIR, CACHE_URLS):
             p = folder / item_id
             if p.is_file():
                 return p
         return None
     kind, name = item_id.split(":", 1)
-    folder = ASSETS_FONDS if kind == "asset" else UPLOADS_DIR
+    folders = {
+        "asset": ASSETS_FONDS,
+        "upload": UPLOADS_DIR,
+        "url": CACHE_URLS,
+        "pexels": CACHE_URLS,
+    }
+    folder = folders.get(kind)
+    if not folder:
+        return None
     p = folder / name
     return p if p.is_file() else None
 
@@ -118,6 +131,51 @@ def save_upload(filename: str, data: bytes) -> Path:
     path = UPLOADS_DIR / f"{uuid.uuid4().hex[:8]}_{safe}"
     path.write_bytes(data)
     return path
+
+
+def import_video_url(
+    url: str,
+    display_name: str | None = None,
+    on_progress: Callable[[int, str], None] | None = None,
+) -> dict:
+    """Telecharge une URL (Pexels / mp4) dans la bibliotheque (cache fonds_url)."""
+    dest = download_background_url(url, on_progress=on_progress)
+    if display_name:
+        safe = "".join(c for c in display_name if c.isalnum() or c in "._- ")[:40].strip()
+        safe = safe.replace(" ", "_") or dest.stem
+        ext = dest.suffix.lower() or ".mp4"
+        renamed = dest.with_name(f"{uuid.uuid4().hex[:8]}_{safe}{ext}")
+        try:
+            dest.rename(renamed)
+            dest = renamed
+        except OSError:
+            pass
+
+    thumbs = ROOT / "cache" / "thumbs"
+    thumbs.mkdir(parents=True, exist_ok=True)
+    thumb_name = f"{dest.stem}.jpg"
+    thumb_path = thumbs / thumb_name
+    try:
+        subprocess_thumb(dest, thumb_path)
+    except Exception:  # noqa: BLE001
+        pass
+
+    duration = None
+    try:
+        from .pipeline import obtenir_duree
+
+        duration = round(obtenir_duree(str(dest)), 1)
+    except Exception:  # noqa: BLE001
+        pass
+
+    return {
+        "id": f"url:{dest.name}",
+        "name": dest.name,
+        "source": "url",
+        "path": str(dest),
+        "duration": duration,
+        "thumb_url": f"/api/backgrounds/thumb/{thumb_name}" if thumb_path.is_file() else None,
+    }
 
 
 def download_background_url(

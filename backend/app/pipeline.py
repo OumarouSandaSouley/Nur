@@ -55,8 +55,9 @@ class JobConfig:
     font_size: int | None = None
     subtitle_anim: str = "fade"  # none | fade | rise | soft | blur
     long_verse_mode: str = "pages"  # pages | block
-    watermark_mode: str = "none"  # none | logo | text
-    watermark_text: str = ""  # TikTok handle when mode=text
+    show_credits: bool = False  # sourate+versets / recitateur en bas
+    watermark_mode: str = "logo"  # toujours logo Nur
+    watermark_text: str = ""
     bg_paths: list[str] | None = None  # multi-fonds montage
 
 
@@ -819,6 +820,15 @@ def _escape_subtitles_path(path: Path) -> str:
     return p
 
 
+def _escape_drawtext(text: str) -> str:
+    return (
+        text.replace("\\", "\\\\")
+        .replace(":", "\\:")
+        .replace("'", "")
+        .replace("%", "%%")
+    )
+
+
 def assembler_video_finale(
     chemin_video_fond: Path,
     chemin_audio: Path,
@@ -829,10 +839,11 @@ def assembler_video_finale(
     max_text_len: int = 0,
     font_size: int | None = None,
     audio_duration: float | None = None,
-    watermark_mode: str = "none",
-    watermark_text: str = "",
     has_translation: bool = False,
     line_count: int = 0,
+    show_credits: bool = False,
+    credit_line1: str = "",
+    credit_line2: str = "",
 ) -> None:
     srt_escaped = _escape_subtitles_path(chemin_srt)
     style = ass_force_style(
@@ -850,28 +861,31 @@ def assembler_video_finale(
         fonts_arg = f":fontsdir='{fonts_dir}'"
 
     filtre = f"subtitles='{srt_escaped}'{fonts_arg}:force_style='{style}'"
+    if show_credits and credit_line1:
+        l1 = _escape_drawtext(credit_line1)
+        l2 = _escape_drawtext(credit_line2 or "")
+        filtre += (
+            f",drawtext=text='{l1}':fontsize=26:fontcolor=white@0.82:"
+            f"x=(w-tw)/2:y=h-118:shadowcolor=black@0.55:shadowx=1:shadowy=1"
+        )
+        if l2:
+            filtre += (
+                f",drawtext=text='{l2}':fontsize=22:fontcolor=white@0.7:"
+                f"x=(w-tw)/2:y=h-78:shadowcolor=black@0.5:shadowx=1:shadowy=1"
+            )
+
     fade_out_start = max(0.0, (audio_duration or 10.0) - 1.5)
     audio_filter = f"afade=t=in:st=0:d=1.2,afade=t=out:st={fade_out_start:.2f}:d=1.5"
 
     logo = ROOT / "assets" / "nur-logo.png"
-    mode = (watermark_mode or "none").strip().lower()
     cmd = ["ffmpeg", "-y", "-i", str(chemin_video_fond), "-i", str(chemin_audio)]
 
-    if mode == "text" and watermark_text.strip():
-        safe = watermark_text.strip().replace("\\", "\\\\").replace(":", "\\:").replace("'", "")
-        if not safe.startswith("@"):
-            safe = f"@{safe}"
-        vf = (
-            f"{filtre},"
-            f"drawtext=text='{safe}':fontsize=28:fontcolor=white@0.55:"
-            f"x=w-tw-40:y=40:shadowcolor=black@0.4:shadowx=1:shadowy=1"
-        )
-        cmd += ["-vf", vf, "-af", audio_filter]
-    elif mode == "logo" and logo.is_file():
+    # Watermark Nur toujours actif si le logo est present
+    if logo.is_file():
         cmd += ["-i", str(logo)]
         fc = (
             f"[0:v]{filtre}[base];"
-            f"[2:v]format=rgba,colorchannelmixer=aa=0.4,scale=72:-1[lg];"
+            f"[2:v]format=rgba,colorchannelmixer=aa=0.45,scale=72:-1[lg];"
             f"[base][lg]overlay=W-w-36:36[v]"
         )
         cmd += ["-filter_complex", fc, "-map", "[v]", "-map", "1:a", "-af", audio_filter]
@@ -981,6 +995,11 @@ def generer_video(
         f"{cfg.subtitle_style}_{cfg.video_style}.mp4"
     )
     chemin_sortie = OUTPUTS / nom
+    if cfg.ayah_from == cfg.ayah_to:
+        credit_l1 = f"{surah_name} - {cfg.ayah_from}"
+    else:
+        credit_l1 = f"{surah_name} - {cfg.ayah_from}-{cfg.ayah_to}"
+    credit_l2 = reciteur["nom"]
     assembler_video_finale(
         chemin_fond,
         chemin_audio,
@@ -991,10 +1010,11 @@ def generer_video(
         max_text_len=max_text_len,
         font_size=cfg.font_size,
         audio_duration=duree,
-        watermark_mode=cfg.watermark_mode,
-        watermark_text=cfg.watermark_text,
         has_translation=cfg.translation != "none",
         line_count=max_lines,
+        show_credits=cfg.show_credits,
+        credit_line1=credit_l1,
+        credit_line2=credit_l2,
     )
 
     # Sidecar for history / regenerate
@@ -1009,8 +1029,8 @@ def generer_video(
         "video_style": cfg.video_style,
         "include_basmala": cfg.include_basmala,
         "translation": cfg.translation,
-        "watermark_mode": cfg.watermark_mode,
-        "watermark_text": cfg.watermark_text,
+        "show_credits": cfg.show_credits,
+        "watermark_mode": "logo",
         "output_name": nom,
         "duration_seconds": round(duree, 1),
     }

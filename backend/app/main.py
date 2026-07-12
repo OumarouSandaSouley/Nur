@@ -13,11 +13,13 @@ from fastapi.staticfiles import StaticFiles
 
 from .backgrounds import (
     delete_library_item,
+    import_video_url,
     list_library,
     resolve_library_id,
     save_upload,
     search_pexels_videos,
 )
+from .audio_cache import list_audio_cache, resolve_audio_file
 from .data import liste_reciteurs, liste_sourates
 from .edit import concat_outputs, trim_output
 from .jobs import manager
@@ -141,6 +143,35 @@ def pexels_search(q: str = Query("nature", min_length=1), per_page: int = Query(
         raise HTTPException(502, f"Recherche Pexels échouée : {exc}") from exc
 
 
+@app.post("/api/backgrounds/import")
+async def import_background(
+    url: str = Form(...),
+    name: str = Form(""),
+):
+    """Telecharge une URL (Pexels / mp4) dans la bibliotheque de fonds."""
+    try:
+        item = import_video_url(url.strip(), display_name=(name or "").strip() or None)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Import échoué : {exc}") from exc
+    return item
+
+
+@app.get("/api/audio")
+def get_audio_cache():
+    """Sons MP3 déjà téléchargés, classés par récitateur / sourate."""
+    return list_audio_cache()
+
+
+@app.get("/api/audio/{dossier}/{filename}")
+def play_cached_audio(dossier: str, filename: str):
+    path = resolve_audio_file(dossier, filename)
+    if not path:
+        raise HTTPException(404, "Audio introuvable.")
+    return FileResponse(path, media_type="audio/mpeg", filename=path.name)
+
+
 @app.post("/api/uploads")
 async def upload_only(background: UploadFile = File(...)):
     if not background.filename:
@@ -170,8 +201,7 @@ async def create_job(
     include_basmala: str = Form("true"),
     translation: str = Form("none"),
     font_size: int | None = Form(None),
-    watermark_mode: str = Form("none"),
-    watermark_text: str = Form(""),
+    show_credits: str = Form("false"),
     background_id: str | None = Form(None),
     background_ids: str | None = Form(None),  # JSON list for multi-fonds
     background_url: str | None = Form(None),
@@ -180,6 +210,7 @@ async def create_job(
     bg_path: str | None = None
     bg_paths: list[str] | None = None
     basmala = include_basmala.strip().lower() in ("1", "true", "yes", "on")
+    credits = show_credits.strip().lower() in ("1", "true", "yes", "on")
     bg_url: str | None = None
     tr = translation.strip().lower() if translation else "none"
     if tr not in ("none", "fr", "en"):
@@ -190,12 +221,6 @@ async def create_job(
     lvm = (long_verse_mode or "pages").strip().lower()
     if lvm not in ("pages", "block"):
         raise HTTPException(400, "Mode versets longs invalide (pages/block).")
-    wm = (watermark_mode or "none").strip().lower()
-    if wm not in ("none", "logo", "text"):
-        raise HTTPException(400, "Watermark invalide (none/logo/text).")
-    wm_text = (watermark_text or "").strip()[:40]
-    if wm == "text" and not wm_text:
-        raise HTTPException(400, "Indique un pseudo pour le watermark texte.")
 
     try:
         if background and background.filename:
@@ -248,8 +273,9 @@ async def create_job(
         include_basmala=basmala,
         translation=tr,
         font_size=font_size if font_size and 12 <= font_size <= 48 else None,
-        watermark_mode=wm,
-        watermark_text=wm_text,
+        show_credits=credits,
+        watermark_mode="logo",
+        watermark_text="",
     )
     try:
         valider_config(cfg)
