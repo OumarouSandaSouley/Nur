@@ -796,3 +796,32 @@ label.field input,
   min-width: 0;
   font-size: 0.75rem;
 }
+
+.anim-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.25rem;
+}
+
+.anim-chip {
+  border: 1px solid rgba(30, 64, 54, 0.18);
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.anim-chip:hover {
+  border-color: var(--sage);
+  transform: translateY(-1px);
+}
+
+.anim-chip.selected {
+  background: var(--sage-deep);
+  border-color: var(--sage-deep);
+  color: #f3faf6;
+}

@@ -53,6 +53,7 @@ class JobConfig:
     font_name: str = "Traditional Arabic"
     translation: str = "none"  # none | fr | en
     font_size: int | None = None
+    subtitle_anim: str = "fade"  # none | fade | rise | soft | blur
     watermark_mode: str = "none"  # none | logo | text
     watermark_text: str = ""  # TikTok handle when mode=text
     bg_paths: list[str] | None = None  # multi-fonds montage
@@ -147,6 +148,8 @@ def valider_config(cfg: JobConfig) -> None:
         "fade",
     ):
         raise ValueError("Style de sous-titres invalide.")
+    if cfg.subtitle_anim not in ("none", "fade", "rise", "soft", "blur"):
+        raise ValueError("Animation de sous-titres invalide.")
     if cfg.video_style not in VIDEO_STYLES:
         raise ValueError("Style video invalide.")
     if cfg.translation not in TRADUCTIONS:
@@ -217,86 +220,89 @@ def recuperer_traduction(
     return {a["numberInSurah"]: a["text"] for a in data["data"]["ayahs"]}
 
 
-def wrap_latin_text(text: str, width: int = 42, max_lines: int = 3) -> str:
-    text = " ".join(text.split())
+def wrap_to_lines(text: str, width: int) -> list[str]:
+    """Coupe en lignes sans jamais tronquer (pagination ensuite)."""
+    text = " ".join((text or "").split())
+    if not text:
+        return []
     if len(text) <= width:
-        return text
+        return [text]
     words = text.split(" ")
     lines: list[str] = []
     current = ""
-    for i, word in enumerate(words):
+    for word in words:
+        # Mot plus large que la largeur : coupe dure
+        while len(word) > width:
+            if current:
+                lines.append(current)
+                current = ""
+            lines.append(word[:width])
+            word = word[width:]
         trial = f"{current} {word}".strip() if current else word
         if len(trial) <= width:
             current = trial
-            continue
-        if current:
-            lines.append(current)
-        current = word
-        if len(lines) >= max_lines - 1:
-            rest = " ".join([current] + words[i + 1 :])
-            if len(rest) > width * 2:
-                rest = rest[: width * 2 - 1] + "..."
-            lines.append(rest)
-            return "\n".join(lines)
+        else:
+            if current:
+                lines.append(current)
+            current = word
     if current:
         lines.append(current)
-    return "\n".join(lines[:max_lines])
+    return lines
 
 
-def obtenir_duree(chemin_fichier: str) -> float:
-    resultat = subprocess.run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "json",
-            chemin_fichier,
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    data = json.loads(resultat.stdout)
-    return float(data["format"]["duration"])
+def wrap_latin_text(text: str, width: int = 30, max_lines: int = 0) -> str:
+    lines = wrap_to_lines(text, width)
+    if max_lines and len(lines) > max_lines:
+        lines = lines[:max_lines]
+    return "\n".join(lines)
 
 
-def secondes_vers_srt_temps(secondes: float) -> str:
-    heures = int(secondes // 3600)
-    minutes = int((secondes % 3600) // 60)
-    sec = int(secondes % 60)
-    millis = int(round((secondes - int(secondes)) * 1000))
-    return f"{heures:02d}:{minutes:02d}:{sec:02d},{millis:03d}"
-
-
-def wrap_arabic_text(text: str, width: int = 30, max_lines: int = 4) -> str:
+def wrap_arabic_text(text: str, width: int = 24, max_lines: int = 0) -> str:
     """Coupe un verset long en lignes lisibles (TikTok vertical)."""
-    text = " ".join(text.split())
-    if len(text) <= width:
-        return text
-    words = text.split(" ")
-    lines: list[str] = []
-    current = ""
-    for i, word in enumerate(words):
-        trial = f"{current} {word}".strip() if current else word
-        if len(trial) <= width:
-            current = trial
-            continue
-        if current:
-            lines.append(current)
-        current = word
-        if len(lines) >= max_lines - 1:
-            rest = " ".join([current] + words[i + 1 :])
-            # dernière ligne : coupe douce si encore trop long
-            if len(rest) > width * 2:
-                rest = rest[: width * 2 - 1] + "…"
-            lines.append(rest)
-            return "\n".join(lines)
-    if current:
-        lines.append(current)
-    return "\n".join(lines[:max_lines])
+    lines = wrap_to_lines(text, width)
+    if max_lines and len(lines) > max_lines:
+        lines = lines[:max_lines]
+    return "\n".join(lines)
+
+
+def _safe_line_widths(text_len: int, has_translation: bool) -> tuple[int, int]:
+    """Largeurs caracteres sures pour 1080px avec marges ~100px."""
+    # Arabic glyphs are visually wider
+    if text_len > 160:
+        ar, lat = 20, 26
+    elif text_len > 100:
+        ar, lat = 22, 28
+    elif text_len > 60:
+        ar, lat = 24, 30
+    else:
+        ar, lat = 26, 32
+    if has_translation:
+        ar = max(18, ar - 2)
+        lat = max(24, lat - 2)
+    return ar, lat
+
+
+def _paginate_lines(
+    lines: list[str],
+    duration: float,
+    max_lines_on_screen: int = 5,
+) -> list[list[str]]:
+    """Decoupe les lignes en pages temporelles (jamais de troncature)."""
+    if not lines:
+        return [[]]
+    n = len(lines)
+    if n <= max_lines_on_screen:
+        return [lines]
+
+    # Vise ~1.6s minimum par page si la duree le permet
+    max_pages = max(1, int(duration / 1.55)) if duration > 0 else 1
+    page_size = max(3, (n + max_pages - 1) // max_pages)
+    page_size = min(page_size, max_lines_on_screen)
+
+    pages: list[list[str]] = []
+    for i in range(0, n, page_size):
+        pages.append(lines[i : i + page_size])
+    return pages
 
 
 def construire_srt_et_audio(
@@ -308,6 +314,7 @@ def construire_srt_et_audio(
     traductions: dict[int, str] | None = None,
     translation_lang: str = "none",
     subtitle_style: str = "classic",
+    subtitle_anim: str = "fade",
 ) -> tuple[float, int]:
     chemin_liste = dossier_tmp / "liste_concat.txt"
     with chemin_liste.open("w", encoding="utf-8") as f:
@@ -338,6 +345,8 @@ def construire_srt_et_audio(
     index_srt = 1
     max_len = 0
     traductions = traductions or {}
+    has_tr = translation_lang != "none"
+
     for numero_verset, chemin in versets:
         duree = obtenir_duree(chemin)
         texte = (
@@ -346,27 +355,75 @@ def construire_srt_et_audio(
             else textes_arabes.get(numero_verset, "")
         )
         max_len = max(max_len, len(texte))
-        width = 28 if len(texte) > 100 else (32 if len(texte) > 60 else 36)
-        texte_wrap = wrap_arabic_text(texte, width=width, max_lines=3 if traductions else 4)
+        ar_w, lat_w = _safe_line_widths(len(texte), has_tr)
+        ar_lines = wrap_to_lines(texte, ar_w)
 
-        if translation_lang != "none":
+        tr_lines: list[str] = []
+        if has_tr:
             if numero_verset == 0:
                 tr = BISMILLAH_FR if translation_lang == "fr" else BISMILLAH_EN
             else:
                 tr = traductions.get(numero_verset, "")
             if tr:
-                texte_wrap = f"{texte_wrap}\n{wrap_latin_text(tr, width=40, max_lines=2)}"
+                max_len = max(max_len, len(tr))
+                tr_lines = wrap_to_lines(tr, lat_w)
 
-        texte_wrap = decorate_srt_text(texte_wrap, subtitle_style)
+        # Bloc combine : arabe puis traduction (sep. visuelle)
+        combined = list(ar_lines)
+        if tr_lines:
+            combined.append("")  # ligne vide entre arabe et FR/EN
+            combined.extend(tr_lines)
 
-        debut = secondes_vers_srt_temps(t)
-        fin = secondes_vers_srt_temps(t + duree)
-        entrees_srt.append(f"{index_srt}\n{debut} --> {fin}\n{texte_wrap}\n")
-        t += duree
-        index_srt += 1
+        pages = _paginate_lines(
+            combined,
+            duree,
+            max_lines_on_screen=5 if has_tr else 6,
+        )
+        page_dur = duree / len(pages) if pages else duree
+
+        for page in pages:
+            # Evite une page qui n'est qu'une ligne vide
+            body = "\n".join(page).strip("\n")
+            if not body.strip():
+                t += page_dur
+                continue
+            texte_wrap = decorate_srt_text(body, subtitle_style, anim=subtitle_anim)
+            debut = secondes_vers_srt_temps(t)
+            fin = secondes_vers_srt_temps(t + page_dur)
+            entrees_srt.append(f"{index_srt}\n{debut} --> {fin}\n{texte_wrap}\n")
+            t += page_dur
+            index_srt += 1
 
     chemin_srt.write_text("\n".join(entrees_srt), encoding="utf-8")
     return t, max_len
+
+
+def obtenir_duree(chemin_fichier: str) -> float:
+    resultat = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "json",
+            chemin_fichier,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    data = json.loads(resultat.stdout)
+    return float(data["format"]["duration"])
+
+
+def secondes_vers_srt_temps(secondes: float) -> str:
+    heures = int(secondes // 3600)
+    minutes = int((secondes % 3600) // 60)
+    sec = int(secondes % 60)
+    millis = int(round((secondes - int(secondes)) * 1000))
+    return f"{heures:02d}:{minutes:02d}:{sec:02d},{millis:03d}"
 
 
 def _filtre_fond(video_style: str) -> str:
@@ -564,10 +621,15 @@ def assembler_video_finale(
     audio_duration: float | None = None,
     watermark_mode: str = "none",
     watermark_text: str = "",
+    has_translation: bool = False,
 ) -> None:
     srt_escaped = _escape_subtitles_path(chemin_srt)
     style = ass_force_style(
-        subtitle_style, font_name, max_text_len=max_text_len, font_size_override=font_size
+        subtitle_style,
+        font_name,
+        max_text_len=max_text_len,
+        font_size_override=font_size,
+        has_translation=has_translation,
     )
 
     fonts_arg = ""
@@ -681,6 +743,7 @@ def generer_video(
         traductions=traductions,
         translation_lang=cfg.translation,
         subtitle_style=cfg.subtitle_style,
+        subtitle_anim=cfg.subtitle_anim,
     )
 
     progress("background", 70, "Preparation du fond...")
@@ -716,6 +779,7 @@ def generer_video(
         audio_duration=duree,
         watermark_mode=cfg.watermark_mode,
         watermark_text=cfg.watermark_text,
+        has_translation=cfg.translation != "none",
     )
 
     # Sidecar for history / regenerate
@@ -725,6 +789,7 @@ def generer_video(
         "ayah_from": cfg.ayah_from,
         "ayah_to": cfg.ayah_to,
         "subtitle_style": cfg.subtitle_style,
+        "subtitle_anim": cfg.subtitle_anim,
         "video_style": cfg.video_style,
         "include_basmala": cfg.include_basmala,
         "translation": cfg.translation,

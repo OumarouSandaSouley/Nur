@@ -21,7 +21,7 @@ from .backgrounds import (
 from .data import liste_reciteurs, liste_sourates
 from .jobs import manager
 from .pipeline import OUTPUTS, JobConfig, ROOT, estimer_duree, valider_config
-from .styles import liste_styles_sous_titres, liste_styles_video
+from .styles import liste_anims_sous_titres, liste_styles_sous_titres, liste_styles_video
 
 load_dotenv(ROOT / ".env")
 
@@ -78,6 +78,7 @@ def get_surahs():
 def get_styles():
     return {
         "subtitles": liste_styles_sous_titres(),
+        "anims": liste_anims_sous_titres(),
         "video": liste_styles_video(),
     }
 
@@ -152,6 +153,7 @@ async def create_job(
     ayah_from: int = Form(...),
     ayah_to: int = Form(...),
     subtitle_style: str = Form("classic"),
+    subtitle_anim: str = Form("fade"),
     video_style: str = Form("clean"),
     include_basmala: str = Form("true"),
     translation: str = Form("none"),
@@ -170,6 +172,9 @@ async def create_job(
     tr = translation.strip().lower() if translation else "none"
     if tr not in ("none", "fr", "en"):
         raise HTTPException(400, "Traduction invalide (none/fr/en).")
+    anim = (subtitle_anim or "fade").strip().lower()
+    if anim not in ("none", "fade", "rise", "soft", "blur"):
+        raise HTTPException(400, "Animation invalide.")
     wm = (watermark_mode or "none").strip().lower()
     if wm not in ("none", "logo", "text"):
         raise HTTPException(400, "Watermark invalide (none/logo/text).")
@@ -219,6 +224,7 @@ async def create_job(
         ayah_from=ayah_from,
         ayah_to=ayah_to,
         subtitle_style=subtitle_style,
+        subtitle_anim=anim,
         video_style=video_style,
         bg_path=bg_path,
         bg_paths=bg_paths,

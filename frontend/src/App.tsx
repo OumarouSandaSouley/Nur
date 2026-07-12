@@ -8,6 +8,7 @@ import {
   type Reciter,
   type SubtitleStyle,
   type Surah,
+  type SubtitleAnim,
   type VideoStyle,
 } from './api'
 
@@ -22,6 +23,7 @@ export default function App() {
   const [reciters, setReciters] = useState<Reciter[]>([])
   const [surahs, setSurahs] = useState<Surah[]>([])
   const [subStyles, setSubStyles] = useState<SubtitleStyle[]>([])
+  const [subAnims, setSubAnims] = useState<SubtitleAnim[]>([])
   const [videoStyles, setVideoStyles] = useState<VideoStyle[]>([])
   const [backgrounds, setBackgrounds] = useState<Background[]>([])
 
@@ -32,7 +34,8 @@ export default function App() {
   const [includeBasmala, setIncludeBasmala] = useState(true)
   const [translation, setTranslation] = useState<'none' | 'fr' | 'en'>('none')
   const [subtitleStyle, setSubtitleStyle] = useState('classic')
-  const [fontSize, setFontSize] = useState(24)
+  const [subtitleAnim, setSubtitleAnim] = useState('fade')
+  const [fontSize, setFontSize] = useState(22)
   const [videoStyle, setVideoStyle] = useState('clean')
   const [watermarkMode, setWatermarkMode] = useState<'none' | 'logo' | 'text'>('none')
   const [watermarkText, setWatermarkText] = useState('')
@@ -92,6 +95,7 @@ export default function App() {
         setReciters(r)
         setSurahs(s)
         setSubStyles(st.subtitles)
+        setSubAnims(st.anims || [])
         setVideoStyles(st.video)
         setBackgrounds(b)
         const prefer = r.find((x) => x.id === 3) ?? r[0]
@@ -170,6 +174,7 @@ export default function App() {
       form.append('ayah_from', String(ayahFrom))
       form.append('ayah_to', String(ayahTo))
       form.append('subtitle_style', subtitleStyle)
+      form.append('subtitle_anim', subtitleAnim)
       form.append('font_size', String(fontSize))
       form.append('video_style', videoStyle)
       form.append('include_basmala', String(includeBasmala))
@@ -404,7 +409,9 @@ export default function App() {
           {step === 1 && (
             <section className="panel step-panel">
               <h2>Sous-titres</h2>
-              <p className="hint">Style du texte arabe (versets longs auto-adaptés).</p>
+              <p className="hint">
+                Les versets longs s&apos;affichent page par page — rien n&apos;est tronque.
+              </p>
               <div className="preset-grid compact">
                 {subStyles.map((s) => (
                   <button
@@ -431,11 +438,27 @@ export default function App() {
                 <input
                   type="range"
                   min={14}
-                  max={40}
+                  max={36}
                   value={fontSize}
                   onChange={(e) => setFontSize(Number(e.target.value))}
                 />
               </label>
+              <p className="field-label" style={{ marginTop: '0.85rem' }}>
+                Animation
+              </p>
+              <div className="anim-grid">
+                {subAnims.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    className={`anim-chip ${subtitleAnim === a.id ? 'selected' : ''}`}
+                    onClick={() => setSubtitleAnim(a.id)}
+                    title={a.description}
+                  >
+                    {a.name}
+                  </button>
+                ))}
+              </div>
               <div className="nav-row">
                 <button type="button" className="btn btn-ghost" onClick={() => setStep(0)}>
                   Retour
@@ -715,7 +738,12 @@ export default function App() {
                 </li>
                 <li>
                   <span>Sous-titres</span>
-                  <span>{selectedSub?.name}</span>
+                  <span>
+                    {selectedSub?.name}
+                    {subAnims.find((a) => a.id === subtitleAnim)
+                      ? ` · ${subAnims.find((a) => a.id === subtitleAnim)?.name}`
+                      : ''}
+                  </span>
                 </li>
                 <li>
                   <span>Style</span>

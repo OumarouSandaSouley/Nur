@@ -20,6 +20,12 @@ export type VideoStyle = {
   description: string
 }
 
+export type SubtitleAnim = {
+  id: string
+  name: string
+  description: string
+}
+
 export type Background = {
   id: string
   name: string
@@ -80,7 +86,9 @@ export const api = {
     `/api/reciters/${id}/preview?surah=${surah}&ayah=${ayah}`,
   surahs: () => json<Surah[]>('/api/surahs'),
   styles: () =>
-    json<{ subtitles: SubtitleStyle[]; video: VideoStyle[] }>('/api/styles'),
+    json<{ subtitles: SubtitleStyle[]; anims: SubtitleAnim[]; video: VideoStyle[] }>(
+      '/api/styles',
+    ),
   estimate: (params: {
     reciter_id: number
     surah: number

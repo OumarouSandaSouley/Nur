@@ -2,6 +2,40 @@
 
 from __future__ import annotations
 
+# Animations ASS (1080x1920, alignement bas centre approx.)
+SUBTITLE_ANIMS: dict[str, dict] = {
+    "none": {
+        "id": "none",
+        "name": "Statique",
+        "description": "Sans animation",
+        "tag": "",
+    },
+    "fade": {
+        "id": "fade",
+        "name": "Fondu",
+        "description": "Apparition / disparition douce",
+        "tag": r"{\fad(420,520)}",
+    },
+    "rise": {
+        "id": "rise",
+        "name": "Montee",
+        "description": "Glisse legerement vers le haut",
+        "tag": r"{\move(540,1780,540,1680,0,520)\fad(280,420)}",
+    },
+    "soft": {
+        "id": "soft",
+        "name": "Pop doux",
+        "description": "Leger zoom a l'apparition",
+        "tag": r"{\fad(280,420)\fscx92\fscy92\t(0,420,\fscx100\fscy100)}",
+    },
+    "blur": {
+        "id": "blur",
+        "name": "Reveal",
+        "description": "Apparait en fondu alpha",
+        "tag": r"{\alpha&HFF&\t(0,480,\alpha&H00&)\fad(0,450)}",
+    },
+}
+
 SUBTITLE_STYLES: dict[str, dict] = {
     "classic": {
         "id": "classic",
@@ -160,16 +194,22 @@ VIDEO_STYLES: dict[str, dict] = {
 }
 
 
-def font_size_for_length(base: int, max_chars: int) -> int:
-    if max_chars > 200:
-        return max(14, base - 12)
-    if max_chars > 140:
-        return max(15, base - 10)
-    if max_chars > 90:
-        return max(16, base - 6)
-    if max_chars > 55:
-        return max(18, base - 3)
-    return base
+def font_size_for_length(base: int, max_chars: int, has_translation: bool = False) -> int:
+    """Taille adaptive pour rester dans le cadre vertical 1080px."""
+    size = base
+    if has_translation:
+        size = min(size, base - 2)
+    if max_chars > 220:
+        size = min(size, 15)
+    elif max_chars > 150:
+        size = min(size, 16)
+    elif max_chars > 100:
+        size = min(size, 18)
+    elif max_chars > 60:
+        size = min(size, 20)
+    elif max_chars > 40:
+        size = min(size, max(18, base - 2))
+    return max(13, size)
 
 
 def ass_force_style(
@@ -177,15 +217,20 @@ def ass_force_style(
     font_name: str = "Traditional Arabic",
     max_text_len: int = 0,
     font_size_override: int | None = None,
+    has_translation: bool = False,
 ) -> str:
     style = SUBTITLE_STYLES.get(style_id, SUBTITLE_STYLES["classic"])
     base = int(font_size_override or style["font_size"])
-    size = font_size_for_length(base, max_text_len)
+    size = font_size_for_length(base, max_text_len, has_translation=has_translation)
     alignment = style["alignment"]
     margin_v = style["margin_v"]
-    if max_text_len > 70 and alignment == 5:
+    # Long text: always bottom, more vertical room
+    if max_text_len > 50 and alignment == 5:
         alignment = 2
-        margin_v = max(margin_v, 140)
+    if max_text_len > 80 or has_translation:
+        margin_v = max(margin_v, 160)
+    if max_text_len > 140:
+        margin_v = max(margin_v, 180)
     parts = [
         f"FontName={font_name}",
         f"FontSize={size}",
@@ -196,8 +241,8 @@ def ass_force_style(
         f"Shadow={style.get('shadow', 0)}",
         f"Alignment={alignment}",
         f"MarginV={margin_v}",
-        "MarginL=70",
-        "MarginR=70",
+        "MarginL=100",
+        "MarginR=100",
         "WrapStyle=2",
     ]
     if style.get("back_colour"):
@@ -205,13 +250,15 @@ def ass_force_style(
     return ",".join(parts)
 
 
-def decorate_srt_text(text: str, style_id: str) -> str:
-    """Ajoute tags ASS inline (fade) si le style l'exige."""
-    style = SUBTITLE_STYLES.get(style_id, SUBTITLE_STYLES["classic"])
-    if style.get("fade"):
-        # fade in 400ms / fade out 500ms
-        return "{\\fad(400,500)}" + text
-    return text
+def decorate_srt_text(text: str, style_id: str, anim: str = "none") -> str:
+    """Ajoute tags ASS d'animation (ou fade legacy du style)."""
+    anim_key = (anim or "none").strip().lower()
+    tag = SUBTITLE_ANIMS.get(anim_key, SUBTITLE_ANIMS["none"])["tag"]
+    if not tag:
+        style = SUBTITLE_STYLES.get(style_id, SUBTITLE_STYLES["classic"])
+        if style.get("fade"):
+            tag = SUBTITLE_ANIMS["fade"]["tag"]
+    return f"{tag}{text}" if tag else text
 
 
 def liste_styles_sous_titres():
@@ -223,6 +270,13 @@ def liste_styles_sous_titres():
             "preview": s["preview"],
         }
         for s in SUBTITLE_STYLES.values()
+    ]
+
+
+def liste_anims_sous_titres():
+    return [
+        {"id": a["id"], "name": a["name"], "description": a["description"]}
+        for a in SUBTITLE_ANIMS.values()
     ]
 
 
