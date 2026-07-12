@@ -159,22 +159,6 @@ export default function App() {
     }
   }
 
-  async function onUpload(file: File | null) {
-    if (!file) return
-    setError(null)
-    try {
-      const saved = await api.upload(file)
-      await refreshBackgrounds()
-      setBackgroundId(saved.id)
-      setBgMode('library')
-      setBgFile(null)
-      setBackgroundUrl('')
-      setSelectedPexelsUrl('')
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Upload échoué')
-    }
-  }
-
   async function startGeneration() {
     setError(null)
     setBusy(true)
@@ -276,10 +260,13 @@ export default function App() {
     <div className="app shell">
       <header className="hero compact">
         <div className="brand-row">
-          <img src="/nur-logo.png" alt="" className="brand-logo" width={40} height={40} />
-          <h1 className="brand">
-            Nur<span>.</span>
-          </h1>
+          <img src="/nur-logo.png" alt="Nur" className="brand-logo" width={40} height={40} />
+          <div className="brand-text">
+            <h1 className="brand">
+              Nur<span>.</span>
+            </h1>
+            <p className="tagline">Studio video coranique</p>
+          </div>
         </div>
       </header>
 
@@ -862,7 +849,7 @@ export default function App() {
                         Voir
                       </button>
                       <a className="btn btn-primary" href={h.download_url} download>
-                        DL
+                        Télécharger
                       </a>
                       <button
                         type="button"
@@ -873,7 +860,7 @@ export default function App() {
                           refreshHistory()
                         }}
                       >
-                        Del
+                        Supprimer
                       </button>
                     </div>
                   </div>
@@ -925,17 +912,39 @@ export default function App() {
                   )}
                   {!job && (
                     <>
+                      {watermarkMode === 'logo' && (
+                        <img
+                          src="/nur-logo.png"
+                          alt=""
+                          className="phone-wm-logo"
+                        />
+                      )}
+                      {watermarkMode === 'text' && watermarkText.trim() && (
+                        <span className="phone-wm-text">
+                          @{watermarkText.replace(/^@/, '')}
+                        </span>
+                      )}
                       <p className="phone-brand">Nur</p>
                       <p
                         className="phone-sample"
                         style={{
                           color: selectedSub?.preview.color ?? '#fff',
                           textShadow: `0 1px 3px ${selectedSub?.preview.outline ?? '#000'}`,
+                          fontSize: `${Math.max(14, fontSize * 0.7)}px`,
                         }}
                       >
                         {SAMPLE_AR}
                       </p>
-                      <p className="phone-hint">Étape {step + 1}/{STEPS.length}</p>
+                      {translation !== 'none' && (
+                        <p className="phone-tr">
+                          {translation === 'fr'
+                            ? 'Traduction française…'
+                            : 'English translation…'}
+                        </p>
+                      )}
+                      <p className="phone-hint">
+                        {step + 1}/{STEPS.length} · {bgLabel}
+                      </p>
                     </>
                   )}
                 </div>
