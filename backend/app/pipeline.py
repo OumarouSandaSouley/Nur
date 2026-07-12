@@ -592,7 +592,10 @@ def construire_srt_et_audio(
             nlines = body.count("\n") + 1
             if nlines >= 3 and anim in ("rise", "soft"):
                 anim = "fade"
-            texte_wrap = decorate_srt_text(body, subtitle_style, anim=anim)
+            align_an = 5 if (mode == "block" or nlines > 8) else 2
+            texte_wrap = decorate_srt_text(
+                body, subtitle_style, anim=anim, align_an=align_an
+            )
             debut = secondes_vers_srt_temps(t)
             fin = secondes_vers_srt_temps(t + page_dur)
             entrees_srt.append(f"{index_srt}\n{debut} --> {fin}\n{texte_wrap}\n")

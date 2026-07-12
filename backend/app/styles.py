@@ -20,6 +20,7 @@ SUBTITLE_ANIMS: dict[str, dict] = {
         "id": "rise",
         "name": "Montee",
         "description": "Glisse legerement vers le haut",
+        # Centre horizontal (540 = milieu de 1080)
         "tag": r"{\move(540,1780,540,1680,0,520)\fad(280,420)}",
     },
     "soft": {
@@ -226,6 +227,15 @@ def font_size_for_length(
     return max(10, size)
 
 
+def _center_alignment(alignment: int) -> int:
+    """Force la colonne centrale ASS (2 bas / 5 milieu / 8 haut)."""
+    if alignment in (7, 8, 9):
+        return 8
+    if alignment in (4, 5, 6):
+        return 5
+    return 2
+
+
 def ass_force_style(
     style_id: str,
     font_name: str = "Traditional Arabic",
@@ -239,16 +249,15 @@ def ass_force_style(
     size = font_size_for_length(
         base, max_text_len, has_translation=has_translation, line_count=line_count
     )
-    alignment = style["alignment"]
-    margin_v = style["margin_v"]
-    # Long text: bottom, unless huge one-shot block → middle + petites marges
+    # Toujours centre horizontalement
     if line_count > 8:
         alignment = 5
         margin_v = 24
-    elif max_text_len > 50 and alignment == 5:
-        alignment = 2
-    if line_count <= 8 and (max_text_len > 80 or has_translation):
-        margin_v = max(margin_v, 140)
+    else:
+        alignment = _center_alignment(int(style["alignment"]))
+        margin_v = style["margin_v"]
+        if max_text_len > 80 or has_translation:
+            margin_v = max(margin_v, 140)
     parts = [
         f"FontName={font_name}",
         f"FontSize={size}",
@@ -259,8 +268,8 @@ def ass_force_style(
         f"Shadow={style.get('shadow', 0)}",
         f"Alignment={alignment}",
         f"MarginV={margin_v}",
-        "MarginL=80",
-        "MarginR=80",
+        "MarginL=100",
+        "MarginR=100",
         "WrapStyle=2",
     ]
     if style.get("back_colour"):
@@ -268,15 +277,28 @@ def ass_force_style(
     return ",".join(parts)
 
 
-def decorate_srt_text(text: str, style_id: str, anim: str = "none") -> str:
-    """Ajoute tags ASS d'animation (ou fade legacy du style)."""
+def decorate_srt_text(
+    text: str,
+    style_id: str,
+    anim: str = "none",
+    align_an: int = 2,
+) -> str:
+    """Ajoute tags ASS (centrage + animation)."""
+    an = align_an if align_an in (2, 5, 8) else 2
     anim_key = (anim or "none").strip().lower()
     tag = SUBTITLE_ANIMS.get(anim_key, SUBTITLE_ANIMS["none"])["tag"]
     if not tag:
         style = SUBTITLE_STYLES.get(style_id, SUBTITLE_STYLES["classic"])
         if style.get("fade"):
             tag = SUBTITLE_ANIMS["fade"]["tag"]
-    return f"{tag}{text}" if tag else text
+    # Fusionne \anX dans le bloc d'override existant
+    if tag.startswith("{") and tag.endswith("}"):
+        inner = tag[1:-1]
+        if "\\an" not in inner:
+            tag = "{\\an" + str(an) + inner + "}"
+    else:
+        tag = "{\\an" + str(an) + "}"
+    return f"{tag}{text}"
 
 
 def liste_styles_sous_titres():
