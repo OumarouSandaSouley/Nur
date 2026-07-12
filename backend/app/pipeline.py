@@ -539,7 +539,14 @@ def construire_srt_et_audio(
             else textes_arabes.get(numero_verset, "")
         )
         max_len = max(max_len, len(texte))
-        ar_w, lat_w = _safe_line_widths(len(texte), has_tr)
+        mode = (long_verse_mode or "pages").strip().lower()
+        # D'un coup: lignes plus larges = moins de hauteur. Petits blocs: plus etroites.
+        if mode == "block":
+            ar_w, lat_w = _safe_line_widths(max(40, len(texte) // 2), has_tr)
+            ar_w = min(34, ar_w + 8)
+            lat_w = min(42, lat_w + 10)
+        else:
+            ar_w, lat_w = _safe_line_widths(len(texte), has_tr)
         ar_lines = wrap_to_lines(texte, ar_w)
 
         tr_lines: list[str] = []
@@ -555,13 +562,13 @@ def construire_srt_et_audio(
         # Deux modes simples :
         # - pages  = petits blocs (AR haut + TR bas)
         # - block  = tout le verset d'un coup
-        mode = (long_verse_mode or "pages").strip().lower()
         if mode == "block":
-            page: list[str] = list(ar_lines)
             if tr_lines:
-                if page:
-                    page.append("")
-                page.extend(tr_lines)
+                # Traduction un peu plus petite pour tenir a l'ecran
+                fr_body = "\n".join(tr_lines)
+                page = list(ar_lines) + [""] + [r"{\fs10}" + fr_body]
+            else:
+                page = list(ar_lines)
             pages = [page] if page else [[]]
         elif tr_lines:
             pages = _paginate_bilingual(
@@ -582,7 +589,8 @@ def construire_srt_et_audio(
                 t += page_dur
                 continue
             anim = subtitle_anim
-            if anim == "rise" and body.count("\n") >= 2:
+            nlines = body.count("\n") + 1
+            if nlines >= 3 and anim in ("rise", "soft"):
                 anim = "fade"
             texte_wrap = decorate_srt_text(body, subtitle_style, anim=anim)
             debut = secondes_vers_srt_temps(t)

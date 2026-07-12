@@ -215,15 +215,15 @@ def font_size_for_length(
     elif max_chars > 40:
         size = min(size, max(18, base - 2))
     # Beaucoup de lignes (mode d'un coup) → reduire encore
-    if line_count > 20:
+    if line_count > 24:
+        size = min(size, 11)
+    elif line_count > 18:
         size = min(size, 12)
-    elif line_count > 14:
+    elif line_count > 12:
         size = min(size, 13)
-    elif line_count > 10:
-        size = min(size, 14)
-    elif line_count > 7:
-        size = min(size, 16)
-    return max(11, size)
+    elif line_count > 8:
+        size = min(size, 15)
+    return max(10, size)
 
 
 def ass_force_style(
@@ -241,28 +241,26 @@ def ass_force_style(
     )
     alignment = style["alignment"]
     margin_v = style["margin_v"]
-    # Long text: bottom, unless huge one-shot block → middle
-    if line_count > 10:
+    # Long text: bottom, unless huge one-shot block → middle + petites marges
+    if line_count > 8:
         alignment = 5
-        margin_v = 40
+        margin_v = 24
     elif max_text_len > 50 and alignment == 5:
         alignment = 2
-    if max_text_len > 80 or has_translation:
+    if line_count <= 8 and (max_text_len > 80 or has_translation):
         margin_v = max(margin_v, 140)
-    if max_text_len > 140 and line_count <= 10:
-        margin_v = max(margin_v, 160)
     parts = [
         f"FontName={font_name}",
         f"FontSize={size}",
         f"PrimaryColour={style['primary']}",
         f"OutlineColour={style['outline_colour']}",
         f"BorderStyle={style['border_style']}",
-        f"Outline={max(1, style['outline'] - (1 if size <= 13 else 0))}",
+        f"Outline={1 if size <= 13 else style['outline']}",
         f"Shadow={style.get('shadow', 0)}",
         f"Alignment={alignment}",
         f"MarginV={margin_v}",
-        "MarginL=90",
-        "MarginR=90",
+        "MarginL=80",
+        "MarginR=80",
         "WrapStyle=2",
     ]
     if style.get("back_colour"):
