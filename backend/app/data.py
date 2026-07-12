@@ -1,18 +1,51 @@
 """Récitateurs, sourates et constantes partagées."""
 
+# source:
+#   everyayah = MP3 verset par verset (everyayah.com)
+#   surah     = MP3 sourate complete, decoupee proportionnellement
 RECITEURS = {
-    1: {"nom": "Abderrahman Al Soudais", "dossier": "Abdurrahmaan_As-Sudais_192kbps"},
-    2: {"nom": "Saad El Ghamidi", "dossier": "Ghamadi_40kbps"},
-    3: {"nom": "Mishary Rashid Alafasy", "dossier": "Alafasy_128kbps"},
-    4: {"nom": "Maher Al Mueaqly", "dossier": "MaherAlMuaiqly128kbps"},
-    5: {"nom": "Abdelbasset Abdessamad", "dossier": "Abdul_Basit_Murattal_192kbps"},
-    6: {"nom": "Ahmed Al Ajmi", "dossier": "ahmed_ibn_ali_al_ajamy_128kbps"},
-    7: {"nom": "Saoud Shuraim", "dossier": "Saood_ash-Shuraym_128kbps"},
-    8: {"nom": "Fares Abbad", "dossier": "Fares_Abbad_64kbps"},
-    9: {"nom": "Mahmoud Khalil Al Hussary", "dossier": "Husary_128kbps"},
-    10: {"nom": "Mohamed Seddik El Menchaoui", "dossier": "Minshawy_Murattal_128kbps"},
-    11: {"nom": "Abdallah Matroud", "dossier": "Abdullah_Matroud_128kbps"},
-    12: {"nom": "Abu Bakr Al Shatri", "dossier": "Abu_Bakr_Ash-Shaatree_128kbps"},
+    1: {"nom": "Abderrahman Al Soudais", "dossier": "Abdurrahmaan_As-Sudais_192kbps", "source": "everyayah"},
+    2: {"nom": "Saad El Ghamidi", "dossier": "Ghamadi_40kbps", "source": "everyayah"},
+    3: {"nom": "Mishary Rashid Alafasy", "dossier": "Alafasy_128kbps", "source": "everyayah"},
+    4: {"nom": "Maher Al Mueaqly", "dossier": "MaherAlMuaiqly128kbps", "source": "everyayah"},
+    5: {"nom": "Abdelbasset Abdessamad", "dossier": "Abdul_Basit_Murattal_192kbps", "source": "everyayah"},
+    6: {"nom": "Ahmed Al Ajmi", "dossier": "ahmed_ibn_ali_al_ajamy_128kbps", "source": "everyayah"},
+    7: {"nom": "Saoud Shuraim", "dossier": "Saood_ash-Shuraym_128kbps", "source": "everyayah"},
+    8: {"nom": "Fares Abbad", "dossier": "Fares_Abbad_64kbps", "source": "everyayah"},
+    9: {"nom": "Mahmoud Khalil Al Hussary", "dossier": "Husary_128kbps", "source": "everyayah"},
+    10: {"nom": "Mohamed Seddik El Menchaoui", "dossier": "Minshawy_Murattal_128kbps", "source": "everyayah"},
+    11: {"nom": "Abdallah Matroud", "dossier": "Abdullah_Matroud_128kbps", "source": "everyayah"},
+    12: {"nom": "Abu Bakr Al Shatri", "dossier": "Abu_Bakr_Ash-Shaatree_128kbps", "source": "everyayah"},
+    13: {
+        "nom": "Omar Hisham Al Arabi",
+        "dossier": "Omar_Hisham_Al_Arabi",
+        "source": "surah",
+        "surah_url": "https://archive.org/download/OmarHishamAl-Arabi/{surah:03d}.mp3",
+        # Sourates disponibles sur Archive.org (pas le Coran complet)
+        "surahs": [
+            1, 12, 14, 16, 17, 18, 19, 20, 22, 25, 32, 36, 40, 44, 49, 50, 51, 52,
+            53, 54, 55, 56, 58, 59, 61, 62, 66, 67, 68, 69, 70, 71, 72, 73, 75, 76,
+            77, 78, 79, 80, 81, 82, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96,
+            97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 109, 110, 111, 112,
+            113, 114,
+        ],
+    },
+    14: {
+        "nom": "Noreen Mohammad Siddiq",
+        "dossier": "Noreen_Mohammad_Siddiq",
+        "source": "surah",
+        "surah_url": "https://server16.mp3quran.net/nourin_siddig/Rewayat-Aldori-A-n-Abi-Amr/{surah:03d}.mp3",
+    },
+    15: {"nom": "Yasser Al Dossari", "dossier": "Yasser_Ad-Dussary_128kbps", "source": "everyayah"},
+    16: {"nom": "Hani Ar-Rifai", "dossier": "Hani_Rifai_192kbps", "source": "everyayah"},
+    17: {"nom": "Ali Al Hudhaify", "dossier": "Hudhaify_128kbps", "source": "everyayah"},
+    18: {"nom": "Muhammad Ayyoub", "dossier": "Muhammad_Ayyoub_128kbps", "source": "everyayah"},
+    19: {"nom": "Muhammad Jibreel", "dossier": "Muhammad_Jibreel_128kbps", "source": "everyayah"},
+    20: {"nom": "Nasser Al Qatami", "dossier": "Nasser_Alqatami_128kbps", "source": "everyayah"},
+    21: {"nom": "Abdullah Basfar", "dossier": "Abdullah_Basfar_192kbps", "source": "everyayah"},
+    22: {"nom": "Salah Al Budair", "dossier": "Salah_Al_Budair_128kbps", "source": "everyayah"},
+    23: {"nom": "Khalid Al Qahtani", "dossier": "Khaalid_Abdullaah_al-Qahtaanee_192kbps", "source": "everyayah"},
+    24: {"nom": "Mahmoud Ali Al Banna", "dossier": "mahmoud_ali_al_banna_32kbps", "source": "everyayah"},
 }
 
 NB_VERSETS = [
@@ -161,10 +194,18 @@ HAUTEUR_SORTIE = 1920
 
 
 def liste_reciteurs():
-    return [
-        {"id": rid, "nom": info["nom"], "dossier": info["dossier"]}
-        for rid, info in RECITEURS.items()
-    ]
+    out = []
+    for rid, info in RECITEURS.items():
+        item = {
+            "id": rid,
+            "nom": info["nom"],
+            "dossier": info["dossier"],
+            "source": info.get("source", "everyayah"),
+        }
+        if info.get("surahs"):
+            item["surahs"] = list(info["surahs"])
+        out.append(item)
+    return out
 
 
 def liste_sourates():

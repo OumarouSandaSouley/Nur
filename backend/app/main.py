@@ -49,25 +49,35 @@ def get_reciters():
 
 @app.get("/api/reciters/{reciter_id}/preview")
 def reciter_preview(reciter_id: int, surah: int = Query(1), ayah: int = Query(1)):
-    """Stream le premier verset (telecharge si besoin) pour apercu audio."""
-    from .data import RECITEURS
-    from .pipeline import CACHE_AUDIO, EVERYAYAH_BASE, HEADERS
+    """Stream un verset (telecharge si besoin) pour apercu audio."""
+    from .data import RECITEURS, NB_VERSETS
+    from .pipeline import telecharger_versets_audio
     import requests as req
 
     if reciter_id not in RECITEURS:
         raise HTTPException(400, "Reciteur invalide.")
-    dossier = RECITEURS[reciter_id]["dossier"]
-    cache_dir = CACHE_AUDIO / dossier
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    nom = f"{surah:03d}{ayah:03d}.mp3"
-    path = cache_dir / nom
-    if not path.is_file() or path.stat().st_size < 1000:
-        url = f"{EVERYAYAH_BASE}/{dossier}/{nom}"
-        r = req.get(url, headers=HEADERS, timeout=45)
-        if r.status_code != 200 or len(r.content) < 1000:
-            raise HTTPException(404, "Audio introuvable.")
-        path.write_bytes(r.content)
-    return FileResponse(path, media_type="audio/mpeg", filename=nom)
+    info = RECITEURS[reciter_id]
+    allowed = info.get("surahs")
+    if allowed and surah not in allowed:
+        raise HTTPException(400, "Sourate non disponible pour ce reciteur.")
+    if not (1 <= surah <= 114) or not (1 <= ayah <= NB_VERSETS[surah - 1]):
+        raise HTTPException(400, "Sourate/verset invalide.")
+    try:
+        paths = telecharger_versets_audio(
+            req.Session(),
+            info["dossier"],
+            surah,
+            ayah,
+            ayah,
+            include_basmala=False,
+            reciter_info=info,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(404, f"Audio introuvable: {exc}") from exc
+    if not paths:
+        raise HTTPException(404, "Audio introuvable.")
+    path = Path(paths[0][1])
+    return FileResponse(path, media_type="audio/mpeg", filename=path.name)
 
 
 @app.get("/api/surahs")

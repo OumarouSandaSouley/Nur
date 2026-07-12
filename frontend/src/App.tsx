@@ -78,6 +78,13 @@ export default function App() {
   const selectedVid = videoStyles.find((s) => s.id === videoStyle)
   const uploads = backgrounds.filter((b) => b.source === 'upload')
   const library = backgrounds.filter((b) => b.source === 'library')
+  const availableSurahs = useMemo(() => {
+    if (selectedReciter?.surahs?.length) {
+      const allow = new Set(selectedReciter.surahs)
+      return surahs.filter((s) => allow.has(s.number))
+    }
+    return surahs
+  }, [surahs, selectedReciter])
 
   async function refreshBackgrounds() {
     setBackgrounds(await api.backgrounds())
@@ -112,6 +119,13 @@ export default function App() {
       })
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (!availableSurahs.length) return
+    if (!availableSurahs.some((s) => s.number === surah)) {
+      setSurah(availableSurahs[0].number)
+    }
+  }, [availableSurahs, surah])
 
   useEffect(() => {
     if (!currentSurah) return
@@ -335,7 +349,7 @@ export default function App() {
                 <label className="field">
                   Sourate
                   <select value={surah} onChange={(e) => setSurah(Number(e.target.value))}>
-                    {surahs.map((s) => (
+                    {availableSurahs.map((s) => (
                       <option key={s.number} value={s.number}>
                         {s.number}. {s.name_fr} ({s.verses} v.)
                       </option>

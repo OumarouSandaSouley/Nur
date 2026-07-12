@@ -1,4 +1,11 @@
-export type Reciter = { id: number; nom: string; dossier: string }
+export type Reciter = {
+  id: number
+  nom: string
+  dossier: string
+  source?: string
+  surahs?: number[]
+}
+
 
 export type Surah = {
   number: number

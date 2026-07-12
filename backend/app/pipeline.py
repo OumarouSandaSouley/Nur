@@ -132,9 +132,16 @@ def nettoyer_nom(nom: str) -> str:
 
 def valider_config(cfg: JobConfig) -> None:
     if cfg.reciter_id not in RECITEURS:
-        raise ValueError("Récitateur invalide (1–12).")
+        raise ValueError("Reciteur invalide.")
     if not (1 <= cfg.surah <= 114):
         raise ValueError("Sourate invalide (1–114).")
+    info = RECITEURS[cfg.reciter_id]
+    allowed = info.get("surahs")
+    if allowed and cfg.surah not in allowed:
+        raise ValueError(
+            f"Cette sourate n'est pas disponible pour {info['nom']} "
+            f"({len(allowed)} sourates en catalogue)."
+        )
     max_v = NB_VERSETS[cfg.surah - 1]
     if not (1 <= cfg.ayah_from <= cfg.ayah_to <= max_v):
         raise ValueError(f"Intervalle invalide (1–{max_v}).")
@@ -169,10 +176,26 @@ def telecharger_versets_audio(
     ayah_to: int,
     include_basmala: bool,
     on_progress: ProgressCallback | None = None,
+    reciter_info: dict | None = None,
 ) -> list[tuple[int, str]]:
-    """Télécharge (ou réutilise le cache) les MP3 de l'intervalle demandé."""
-    cache_dir = CACHE_AUDIO / dossier_everyayah
+    """Telecharge (ou reutilise le cache) les MP3 de l'intervalle demande."""
+    info = reciter_info or {"source": "everyayah", "dossier": dossier_everyayah}
+    source = info.get("source", "everyayah")
+    dossier = info.get("dossier", dossier_everyayah)
+    cache_dir = CACHE_AUDIO / dossier
     cache_dir.mkdir(parents=True, exist_ok=True)
+
+    if source == "surah":
+        return _telecharger_depuis_sourate(
+            session,
+            info,
+            numero_sourate,
+            ayah_from,
+            ayah_to,
+            include_basmala,
+            cache_dir,
+            on_progress=on_progress,
+        )
 
     numeros: list[int] = list(range(ayah_from, ayah_to + 1))
     if (
@@ -188,7 +211,7 @@ def telecharger_versets_audio(
         nom_fichier = f"{numero_sourate:03d}{n:03d}.mp3"
         chemin_local = cache_dir / nom_fichier
         if not chemin_local.is_file() or chemin_local.stat().st_size < 1000:
-            url = f"{EVERYAYAH_BASE}/{dossier_everyayah}/{nom_fichier}"
+            url = f"{EVERYAYAH_BASE}/{dossier}/{nom_fichier}"
             reponse = session.get(url, headers=HEADERS, timeout=45)
             if reponse.status_code != 200 or len(reponse.content) < 1000:
                 continue
@@ -198,8 +221,103 @@ def telecharger_versets_audio(
             pct = 10 + int(40 * (i + 1) / max(total, 1))
             on_progress("downloading", pct, f"Audio {i + 1}/{total}")
     if not chemins:
-        raise RuntimeError("Aucun fichier audio récupéré pour cet intervalle.")
+        raise RuntimeError("Aucun fichier audio recupere pour cet intervalle.")
     return chemins
+
+
+def _telecharger_depuis_sourate(
+    session: requests.Session,
+    info: dict,
+    numero_sourate: int,
+    ayah_from: int,
+    ayah_to: int,
+    include_basmala: bool,
+    cache_dir: Path,
+    on_progress: ProgressCallback | None = None,
+) -> list[tuple[int, str]]:
+    """Telecharge une sourate complete puis decoupe les versets (approx.)."""
+    template = info.get("surah_url") or ""
+    if not template:
+        raise RuntimeError("URL sourate manquante pour ce reciteur.")
+
+    surah_path = cache_dir / f"{numero_sourate:03d}_full.mp3"
+    if not surah_path.is_file() or surah_path.stat().st_size < 5000:
+        if on_progress:
+            on_progress("downloading", 12, "Telechargement sourate...")
+        url = template.format(surah=numero_sourate)
+        reponse = session.get(url, headers=HEADERS, timeout=120)
+        if reponse.status_code != 200 or len(reponse.content) < 5000:
+            raise RuntimeError(
+                f"Sourate {numero_sourate} indisponible pour {info.get('nom', 'ce reciteur')}."
+            )
+        surah_path.write_bytes(reponse.content)
+
+    if on_progress:
+        on_progress("downloading", 30, "Decoupe des versets...")
+
+    textes = recuperer_textes_arabes(session, numero_sourate)
+    nb = NB_VERSETS[numero_sourate - 1]
+    duree = obtenir_duree(str(surah_path))
+
+    # Basmala approx. en tete (sauf Fatiha / Tawba)
+    basmala_dur = 0.0
+    want_basmala = (
+        include_basmala
+        and ayah_from == 1
+        and numero_sourate not in (1, 9)
+    )
+    if want_basmala:
+        basmala_dur = min(5.0, max(2.2, duree * 0.045))
+
+    usable = max(0.5, duree - basmala_dur)
+    weights = [max(10, len(textes.get(i, ""))) for i in range(1, nb + 1)]
+    total_w = float(sum(weights)) or 1.0
+
+    starts: dict[int, float] = {}
+    ends: dict[int, float] = {}
+    t = basmala_dur
+    for i in range(1, nb + 1):
+        starts[i] = t
+        t += usable * (weights[i - 1] / total_w)
+        ends[i] = t
+    ends[nb] = duree
+
+    chemins: list[tuple[int, str]] = []
+    if want_basmala:
+        basmala_file = cache_dir / f"{numero_sourate:03d}000.mp3"
+        if not basmala_file.is_file() or basmala_file.stat().st_size < 800:
+            _ffmpeg_extract(surah_path, 0.0, basmala_dur, basmala_file)
+        chemins.append((0, str(basmala_file)))
+
+    targets = list(range(ayah_from, ayah_to + 1))
+    for i, n in enumerate(targets):
+        out = cache_dir / f"{numero_sourate:03d}{n:03d}.mp3"
+        if not out.is_file() or out.stat().st_size < 800:
+            _ffmpeg_extract(surah_path, starts[n], ends[n], out)
+        chemins.append((n, str(out)))
+        if on_progress:
+            pct = 30 + int(25 * (i + 1) / max(len(targets), 1))
+            on_progress("downloading", pct, f"Verset {i + 1}/{len(targets)}")
+
+    if not chemins:
+        raise RuntimeError("Aucun segment audio produit.")
+    return chemins
+
+
+def _ffmpeg_extract(src: Path, start: float, end: float, out: Path) -> None:
+    start = max(0.0, start)
+    end = max(start + 0.25, end)
+    cmd = [
+        "ffmpeg", "-y",
+        "-ss", f"{start:.3f}",
+        "-to", f"{end:.3f}",
+        "-i", str(src),
+        "-c:a", "libmp3lame", "-q:a", "4",
+        str(out),
+    ]
+    result = subprocess.run(cmd, capture_output=True)
+    if result.returncode != 0 or not out.is_file() or out.stat().st_size < 400:
+        raise RuntimeError(f"Decoupe audio echouee ({out.name}).")
 
 
 def recuperer_textes_arabes(session: requests.Session, numero_sourate: int) -> dict[int, str]:
@@ -789,6 +907,7 @@ def generer_video(
         cfg.ayah_to,
         cfg.include_basmala,
         on_progress=on_progress,
+        reciter_info=reciteur,
     )
 
     progress("text", 55, "Recuperation du texte arabe...")
