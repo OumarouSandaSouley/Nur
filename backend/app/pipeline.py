@@ -546,24 +546,28 @@ def construire_srt_et_audio(
                 max_len = max(max_len, len(tr))
                 tr_lines = wrap_to_lines(tr, lat_w)
 
-        # Pages bilingues (AR haut / TR bas) OU un seul bloc complet
+        # Toujours AR en haut + TR en bas.
+        # "block" = autant que possible sur un ecran (sans depasser).
+        # "pages" = pages plus courtes.
         mode = (long_verse_mode or "pages").strip().lower()
-        if mode == "block":
-            page: list[str] = list(ar_lines)
-            if tr_lines:
-                if page:
-                    page.append("")
-                page.extend(tr_lines)
-            pages = [page] if page else [[]]
-        elif tr_lines:
-            pages = _paginate_bilingual(
-                ar_lines,
-                tr_lines,
-                duree,
-                max_lines_on_screen=5,
-            )
+        max_screen = 8 if mode == "block" else 5
+        if tr_lines:
+            combined_len = len(ar_lines) + 1 + len(tr_lines)
+            if mode == "block" and combined_len <= max_screen:
+                page = list(ar_lines) + [""] + list(tr_lines)
+                pages = [page]
+            else:
+                pages = _paginate_bilingual(
+                    ar_lines,
+                    tr_lines,
+                    duree,
+                    max_lines_on_screen=max_screen,
+                )
         else:
-            pages = _paginate_lines(ar_lines, duree, max_lines_on_screen=6)
+            if mode == "block" and len(ar_lines) <= max_screen:
+                pages = [list(ar_lines)]
+            else:
+                pages = _paginate_lines(ar_lines, duree, max_lines_on_screen=max_screen)
         page_dur = duree / len(pages) if pages else duree
 
         for page in pages:
@@ -572,7 +576,11 @@ def construire_srt_et_audio(
             if not body.strip():
                 t += page_dur
                 continue
-            texte_wrap = decorate_srt_text(body, subtitle_style, anim=subtitle_anim)
+            # Montée ABSOLUE casse les blocs multi-lignes → fondu à la place
+            anim = subtitle_anim
+            if anim == "rise" and body.count("\n") >= 2:
+                anim = "fade"
+            texte_wrap = decorate_srt_text(body, subtitle_style, anim=anim)
             debut = secondes_vers_srt_temps(t)
             fin = secondes_vers_srt_temps(t + page_dur)
             entrees_srt.append(f"{index_srt}\n{debut} --> {fin}\n{texte_wrap}\n")

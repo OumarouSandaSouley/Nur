@@ -492,7 +492,7 @@ export default function App() {
                   className={`anim-chip ${longVerseMode === 'block' ? 'selected' : ''}`}
                   onClick={() => setLongVerseMode('block')}
                 >
-                  Bloc complet
+                  Dense
                 </button>
               </div>
               <div className="nav-row">
@@ -773,7 +773,7 @@ export default function App() {
                 </li>
                 <li>
                   <span>Longs versets</span>
-                  <span>{longVerseMode === 'block' ? 'Bloc complet' : 'Pages'}</span>
+                  <span>{longVerseMode === 'block' ? 'Dense' : 'Pages'}</span>
                 </li>
                 <li>
                   <span>Style</span>
