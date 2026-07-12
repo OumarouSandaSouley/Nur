@@ -535,44 +535,48 @@ export default function App() {
 
                 {bgMode === 'library' && (
                   <>
-                    <label className="field">
-                      Uploads
-                      <select
-                        value={backgroundId.startsWith('upload:') ? backgroundId : ''}
-                        onChange={(e) => {
-                          setBackgroundId(e.target.value)
-                          setBgFile(null)
-                          setBackgroundUrl('')
-                          setSelectedPexelsUrl('')
-                        }}
-                      >
-                        <option value="">— Aucun —</option>
-                        {uploads.map((b) => (
-                          <option key={b.id} value={b.id}>
+                    <div className="lib-grid">
+                      {[...uploads, ...library].map((b) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          className={`lib-card ${backgroundId === b.id ? 'selected' : ''}`}
+                          onClick={() => {
+                            setBackgroundId(b.id)
+                            setBgFile(null)
+                            setBackgroundUrl('')
+                            setSelectedPexelsUrl('')
+                          }}
+                        >
+                          {b.thumb_url ? (
+                            <img src={b.thumb_url} alt="" />
+                          ) : (
+                            <div className="lib-ph" />
+                          )}
+                          <span>
                             {b.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="field">
-                      assets/fonds
-                      <select
-                        value={backgroundId.startsWith('asset:') ? backgroundId : ''}
-                        onChange={(e) => {
-                          setBackgroundId(e.target.value)
-                          setBgFile(null)
-                          setBackgroundUrl('')
-                          setSelectedPexelsUrl('')
-                        }}
-                      >
-                        <option value="">— Aucun —</option>
-                        {library.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                            {b.duration ? ` · ${Math.round(b.duration)}s` : ''}
+                          </span>
+                          {b.source === 'upload' && (
+                            <em
+                              role="button"
+                              tabIndex={0}
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                await api.deleteBackground(b.id)
+                                if (backgroundId === b.id) setBackgroundId('')
+                                refreshBackgrounds()
+                              }}
+                            >
+                              x
+                            </em>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    {!uploads.length && !library.length && (
+                      <p className="hint tight">Aucune video en bibliotheque.</p>
+                    )}
                   </>
                 )}
               </div>

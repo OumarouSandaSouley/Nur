@@ -222,10 +222,62 @@ label.field input,
   margin-left: 0.25rem;
 }
 
-.audio-btn {
-  align-self: flex-start;
-  font-size: 0.85rem;
-  padding: 0.45rem 0.9rem;
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.45rem;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.lib-card {
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  padding: 0;
+  background: #111;
+  cursor: pointer;
+  text-align: left;
+}
+
+.lib-card.selected {
+  border-color: var(--gold);
+}
+
+.lib-card img,
+.lib-ph {
+  width: 100%;
+  aspect-ratio: 9/14;
+  object-fit: cover;
+  display: block;
+  background: #1a332c;
+}
+
+.lib-card span {
+  display: block;
+  padding: 0.25rem 0.35rem;
+  font-size: 0.62rem;
+  color: #eee;
+  background: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lib-card em {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-style: normal;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
 }
 
 .history-list {

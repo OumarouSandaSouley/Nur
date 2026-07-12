@@ -25,6 +25,8 @@ export type Background = {
   name: string
   source: 'library' | 'upload'
   path: string
+  duration?: number | null
+  thumb_url?: string | null
 }
 
 export type PexelsVideo = {
@@ -111,6 +113,13 @@ export const api = {
     const res = await fetch('/api/uploads', { method: 'POST', body: form })
     if (!res.ok) throw new Error(await res.text())
     return res.json() as Promise<Background>
+  },
+  deleteBackground: async (id: string) => {
+    const res = await fetch(`/api/backgrounds/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return res.json()
   },
   history: () => json<HistoryItem[]>('/api/history'),
   deleteHistory: async (filename: string) => {

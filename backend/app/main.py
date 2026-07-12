@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .backgrounds import (
+    delete_library_item,
     list_library,
     resolve_library_id,
     save_upload,
@@ -98,6 +99,26 @@ def estimate_duration(
 @app.get("/api/backgrounds")
 def get_backgrounds():
     return list_library()
+
+
+@app.get("/api/backgrounds/thumb/{name}")
+def background_thumb(name: str):
+    safe = Path(name).name
+    path = ROOT / "cache" / "thumbs" / safe
+    if not path.is_file():
+        raise HTTPException(404, "Miniature introuvable.")
+    return FileResponse(path, media_type="image/jpeg")
+
+
+@app.delete("/api/backgrounds/{item_id:path}")
+def delete_background(item_id: str):
+    try:
+        ok = delete_library_item(item_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if not ok:
+        raise HTTPException(404, "Fond introuvable.")
+    return {"ok": True}
 
 
 @app.get("/api/pexels/search")
