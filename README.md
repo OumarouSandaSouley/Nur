@@ -1,58 +1,57 @@
-# Nur — Studio Vidéo Coranique
+# Nur — Quran Video Studio
 
 <p align="center">
   <img src="frontend/public/nur-logo.png" alt="Nur" width="72" />
 </p>
 
-**Nur** (*Noor* — « Lumière » en arabe نور) est un studio vidéo local qui transforme une récitation du Coran en vidéo verticale prête pour TikTok, Reels ou Shorts. Tu choisis un récitateur, une sourate et des versets : Nur télécharge l'audio, synchronise les sous-titres arabes (avec traduction française ou anglaise si tu veux), compose le fond vidéo, grave le logo Nur, et exporte un MP4 en 1080×1920.
+**Nur** (*Noor*, "Light" in Arabic نور) is a local video studio that turns a Quran recitation into a vertical video ready for TikTok, Reels or Shorts. Pick a reciter, a surah and a verse range: Nur downloads the audio, syncs the Arabic subtitles (with an optional French or English translation), builds the video background, burns in the Nur logo, and exports a 1080×1920 MP4.
 
-Le tout se pilote depuis un vrai studio : tableau de bord, historique, bibliothèque de fonds (Pexels, upload), cache audio classé, puis trim et montage une fois la vidéo générée. Aucun compte distant — tout tourne sur ta machine.
+Everything runs from a full studio: dashboard, history, background library (Pexels, upload), organized audio cache, plus trimming and editing once the video is generated. No remote account needed, everything runs on your machine.
 
-![Nur — page Créer avec aperçu téléphone](docs/studio-creer.jpg)
-##  Table des matières
+![Nur — Create page with phone preview](docs/studio-creer.jpg)
 
-- [En bref](#en-bref)
-- [Aperçu de l'interface](#aperçu-de-linterface)
-- [Prérequis](#prérequis)
+## Table of Contents
+
+- [At a Glance](#at-a-glance)
+- [Interface Overview](#interface-overview)
+- [Available Reciters](#available-reciters)
+- [Requirements](#requirements)
 - [Installation](#installation)
-- [Lancer l'app](#lancer-lapp)
-- [Configuration (API Pexels)](#clé-pexels-optionnel)
-- [Structure du projet](#structure-du-projet)
+- [Running the App](#running-the-app)
+- [Configuration (Pexels API)](#configuration-pexels-api)
+- [Project Structure](#project-structure)
 
+## At a Glance
 
-## En bref
+- **Recitation**: reciter, surah, verse range, audio preview
+- **Subtitles**: Arabic only or bilingual (FR / EN), styles, animations, long verses
+- **Video**: Pexels / upload / library backgrounds, render styles, mandatory Nur watermark
+- **Studio**: dashboard, history, bottom credits, trim & assembly, cached audio
 
-- **Récitation** — récitateur, sourate, intervalle de versets, aperçu audio
-- **Sous-titres** — arabe seul ou bilingue (FR / EN), styles, animations, versets longs
-- **Vidéo** — fonds Pexels / upload / bibliothèque, styles de rendu, watermark Nur obligatoire
-- **Studio** — dashboard, historique, crédits en bas, trim & assemblage, sons en cache
+## Interface Overview
 
+### Dashboard
 
+Overview: recent videos, backgrounds, queue, quick access to the studio.
 
-## Aperçu de l’interface
+![Nur — dashboard](docs/tableau-de-bord.jpg)
 
-### Tableau de bord
+### Backgrounds
 
-Vue d’ensemble : vidéos récentes, fonds, file d’attente, accès rapide au studio.
+Background library: search Pexels → **Add**, then **Use** to load the background into a new creation.
 
-![Nur — tableau de bord](docs/tableau-de-bord.jpg)
+![Nur — background library](docs/fonds.jpg)
 
-### Fonds
+### Audio
 
-Bibliothèque de fonds : recherche Pexels → **Ajouter**, puis **Utiliser** pour charger le fond dans une création.
+Already downloaded audio, organized by reciter then surah, ready to replay without downloading again.
 
-![Nur — bibliothèque de fonds](docs/fonds.jpg)
+![Nur — organized audio cache](docs/sons.jpg)
 
-### Sons
+## Available Reciters
 
-Audio déjà téléchargé, classé par récitateur puis sourate — prêt à réécouter sans re-télécharger.
-
-![Nur — cache audio classé](docs/sons.jpg)
-
-## Récitateurs disponibles
-
-| # | Récitateur | Sourates | Source |
-|---|-----------|----------|--------|
+| # | Reciter | Surahs | Source |
+|---|---------|--------|--------|
 | 1 | Abderrahman Al Soudais | 114 | EveryAyat |
 | 2 | Saad El Ghamidi | 114 | EveryAyat |
 | 3 | Mishary Rashid Alafasy | 114 | EveryAyat |
@@ -78,51 +77,47 @@ Audio déjà téléchargé, classé par récitateur puis sourate — prêt à r�
 | 23 | Khalid Al Qahtani | 114 | EveryAyat |
 | 24 | Mahmoud Ali Al Banna | 114 | EveryAyat |
 
-**Note** : Le Coran contient 114 sourates au total. Certains récitateurs n'ont pas toutes les sourates disponibles encore (indiqué dans le tableau).
+**Note**: The Quran has 114 surahs in total. Some reciters don't have every surah available yet (see the table).
 
+## Requirements
 
+- **Python 3.10+**
+  Download: [python.org](https://www.python.org/downloads/)
+  Check: `python --version`
 
-## Prérequis
+- **Node.js 18+**
+  Download: [nodejs.org](https://nodejs.org/)
+  Check: `node --version` and `npm --version`
 
-- **Python 3.10+**  
-  Télécharge : [python.org](https://www.python.org/downloads/)  
-  Vérifie : `python --version`
+- **ffmpeg & ffprobe** (in your `PATH`)
+  - **Windows**: [Gyan builds](https://www.gyan.dev/ffmpeg/builds/) (essentials)
+    → Add the `bin/` folder to your system PATH
+    Check: `ffmpeg -version` and `ffprobe -version` in a new terminal
 
-- **Node.js 18+**  
-  Télécharge : [nodejs.org](https://nodejs.org/)  
-  Vérifie : `node --version` et `npm --version`
-
-- **ffmpeg & ffprobe** (dans le `PATH`)  
-  - **Windows** : [Builds Gyan](https://www.gyan.dev/ffmpeg/builds/) (essentials)  
-    → Ajoute le dossier `bin/` au PATH système  
-    Vérifie : `ffmpeg -version` et `ffprobe -version` dans un nouveau terminal
-
-  - **macOS** :  
+  - **macOS**:
     ```bash
     brew install ffmpeg
     ```
 
-  - **Linux (Ubuntu/Debian)** :  
+  - **Linux (Ubuntu/Debian)**:
     ```bash
     sudo apt-get install ffmpeg
     ```
 
-
-
 ## Installation
 
-### 1️ Cloner le repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/OumarouSandaSouley/Nur.git
 cd Nur
 ```
 
-Ou télécharger directement : [Archive ZIP](https://github.com/OumarouSandaSouley/Nur/archive/refs/heads/main.zip)
+Or download directly: [ZIP archive](https://github.com/OumarouSandaSouley/Nur/archive/refs/heads/main.zip)
 
-### 2️ Installer les dépendances
+### 2. Install dependencies
 
-**Windows (PowerShell)** :
+**Windows (PowerShell)**:
 
 ```powershell
 python -m pip install -r backend\requirements.txt
@@ -131,7 +126,7 @@ npm install
 cd ..
 ```
 
-**macOS / Linux (Bash)** :
+**macOS / Linux (Bash)**:
 
 ```bash
 python -m pip install -r backend/requirements.txt
@@ -140,138 +135,123 @@ npm install
 cd ..
 ```
 
+## Running the App
 
-
-## Lancer l’app
-
-**Windows** — double-clic sur `start.bat` :
+**Windows**: double-click `start.bat`, or run:
 
 ```powershell
 .\start.bat
 ```
 
-**macOS / Linux** :
+**macOS / Linux**:
 
 ```bash
 bash start.sh
 ```
 
-| Script | Plateforme |
-|--------|-----------|
+| Script | Platform |
+|--------|----------|
 | `start.bat` | Windows (cmd) |
 | `start.ps1` | Windows (PowerShell) |
 | `start.sh` | Git Bash / macOS / Linux |
 
-Puis ouvre **http://localhost:5173** dans ton navigateur  
-API locale : `http://127.0.0.1:8000`
+Then open **http://localhost:5173** in your browser.
+Local API: `http://127.0.0.1:8000`
 
-## Configuration (API Pexels)
+## Configuration (Pexels API)
 
-Pour utiliser la recherche de fonds dans l'onglet **Fonds → Recherche Pexels** :
+To use background search in the **Backgrounds → Pexels Search** tab:
 
-1. Crée une clé gratuite : [pexels.com/api](https://www.pexels.com/api/)
-2. Avant de lancer l'app :
+1. Create a free key: [pexels.com/api](https://www.pexels.com/api/)
+2. Before launching the app:
 
-**Windows (PowerShell)** :
+**Windows (PowerShell)**:
 ```powershell
-$env:PEXELS_API_KEY = "ta_cle_ici"
+$env:PEXELS_API_KEY = "your_key_here"
 .\start.ps1
 ```
 
-**macOS / Linux** :
+**macOS / Linux**:
 ```bash
-export PEXELS_API_KEY="ta_cle_ici"
+export PEXELS_API_KEY="your_key_here"
 bash start.sh
 ```
 
-Ou crée un fichier `.env` à la racine du projet :
+Or create a `.env` file at the project root:
 ```
-PEXELS_API_KEY=ta_cle_ici
+PEXELS_API_KEY=your_key_here
 ```
 
+## First Run (≈ 1 minute)
 
+1. **Create** → pick a reciter (e.g. Alafasy) → short surah (**Al-Ikhlas 112**, verses 1–4)
+2. **Subtitles** → Gold or Classic style
+3. **Video** → Minimal style, or **Use** a background from **Backgrounds**
+4. **Generate** → wait for progress → **Download**
 
-## Premier essai (≈ 1 minute)
+Tip: MP3 files stay cached in `cache/audio/` and videos are written to `outputs/`.
 
-1. **Créer** → récitateur (ex. Alafasy) → sourate courte (**Al-Ikhlas 112**, versets 1–4)
-2. **Sous-titres** → style Or ou Classique
-3. **Vidéo** → style Épuré, ou **Utiliser** un fond depuis **Fonds**
-4. **Générer** → attendre la progression → **Télécharger**
+## Studio Navigation
 
-Astuce : les MP3 restent en cache (`cache/audio/`) et les vidéos sortent dans `outputs/`.
+| Page | Purpose |
+|------|---------|
+| **Dashboard** | Stats, recent videos, queue |
+| **Create** | Wizard: Content → Subtitles → Video → Generate |
+| **History** | Preview, download, trim, assemble |
+| **Backgrounds** | Library, Pexels, upload. **Use** = set as creation background |
+| **Audio** | Already downloaded MP3s, organized by reciter / surah |
 
+The **Nur** logo is always burned into videos (there is no option to remove it).
+**Bottom credits** option: surah + verses on one line, reciter below.
 
-
-## Navigation du studio
-
-| Page | Rôle |
-|------|------|
-| **Tableau de bord** | Stats, vidéos récentes, file d’attente |
-| **Créer** | Wizard Contenu → Sous-titres → Vidéo → Générer |
-| **Historique** | Prévisualiser, télécharger, trimmer, assembler |
-| **Fonds** | Bibliothèque, Pexels, upload — **Utiliser** = fond de création |
-| **Sons** | MP3 déjà téléchargés, classés par récitateur / sourate |
-
-Le logo **Nur** est toujours gravé sur les vidéos (pas d’option pour le retirer).  
-Option **crédits bas** : sourate + versets sur une ligne, récitateur en dessous.
-
-
-
-## Structure du projet
+## Project Structure
 
 ```
 Nur/
-├── backend/app/     API FastAPI + pipeline ffmpeg
-├── frontend/        UI Vite + React (dashboard)
-├── assets/          Logo Nur, polices, fonds locaux
-├── cache/audio/     Cache MP3 par récitateur
-├── cache/fonds_url/ Fonds téléchargés (Pexels / URL)
-├── outputs/         Vidéos générées (+ sidecars JSON / SRT)
-├── docs/            Captures d’écran
-└── start.bat        Lance API + frontend
+├── backend/app/     FastAPI API + ffmpeg pipeline
+├── frontend/        Vite + React UI (dashboard)
+├── assets/          Nur logo, fonts, local backgrounds
+├── cache/audio/     MP3 cache per reciter
+├── cache/fonds_url/ Downloaded backgrounds (Pexels / URL)
+├── outputs/         Generated videos (+ JSON / SRT sidecars)
+├── docs/            Screenshots
+└── start.bat        Launches API + frontend
 ```
 
+## Troubleshooting
 
+| Problem | What to try |
+|---------|-------------|
+| "API unreachable" | Relaunch `start.bat`; check port **8000** |
+| ffmpeg not found | Reinstall the essentials build and open a new terminal |
+| Empty Pexels search | Check that `PEXELS_API_KEY` is set in your environment |
+| Generation stuck | Single in-memory worker: don't run the API with `reload=True` |
+| Port 5173 already in use | Change the port in `frontend/vite.config.ts` |
 
-## Dépannage rapide
+## Useful Links
 
-| Problème | Piste |
-|----------|--------|
-| « API inaccessible » | Relance `start.bat` ; vérifie le port **8000** |
-| ffmpeg introuvable | Réinstalle les essentials et rouvre un nouveau terminal |
-| Recherche Pexels vide | Vérifie que `PEXELS_API_KEY` est défini dans l'environnement |
-| Génération bloquée | Un seul worker mémoire : ne lance pas l'API avec `reload=True` |
-| Port 5173 déjà utilisé | Change le port dans `frontend/vite.config.ts` |
+- **Reciter sources**:
+  - [EveryAyat](https://everyayat.com/): 22 reciters (verse by verse)
+  - [Archive.org](https://archive.org/): Omar Hisham Al Arabi (71 surahs)
+  - [mp3quran.net](https://mp3quran.net/): Noreen Mohammad Siddiq (114 surahs)
+- Quran: [Quran.com](https://quran.com/)
+- Backgrounds: [Pexels](https://www.pexels.com/) (free, open license)
+- ffmpeg guide: [ffmpeg.org](https://ffmpeg.org/)
+- API docs: [FastAPI](https://fastapi.tiangolo.com/)
 
+## License
 
+Nur: source code for **personal use** · public recitations · backgrounds: Pexels license
 
-##   Liens utiles
+I hold no rights over the Quranic recitations (public works) or the Pexels backgrounds (Pexels license).
+The source code is free for personal use.
 
--  **Sources des récitateurs** :
-  - [EveryAyat](https://everyayat.com/) — 22 récitateurs (verset par verset)
-  - [Archive.org](https://archive.org/) — Omar Hisham Al Arabi (71 sourates)
-  - [mp3quran.net](https://mp3quran.net/) — Noreen Mohammad Siddiq (114 sourates)
--  Quran : [Quran.com](https://quran.com/)
--  Fonds : [Pexels](https://www.pexels.com/) (gratuit, licence libre)
--  Guide ffmpeg : [ffmpeg.org](https://ffmpeg.org/)
--  API docs : [FastAPI](https://fastapi.tiangolo.com/)
+Created by [Oumarou Sanda Souley](https://github.com/OumarouSandaSouley)
 
-##  Licence
+### Contact
 
-Nur — code source **usage personnel** · récitations publiques · fonds : licence Pexels
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat-square&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/oumarou-sanda-souley/)
+[![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=flat-square&logo=twitter&logoColor=white)](https://x.com/OumarouSaSouley)
+[![Portfolio](https://img.shields.io/badge/Portfolio-000000?style=flat-square&logo=vercel&logoColor=white)](https://www.oumarouss.saaretech.com/)
 
-Je n'ai aucun droit sur les récitations coraniques (œuvres publiques) ni sur les fonds Pexels (licence Pexels).  
-Le code source est libre d'utilisation personnelle.
-
-
-Créé par [Oumarou Sanda Souley](https://github.com/OumarouSandaSouley)
-
-### Me contacter
-
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat-square&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/souley-oumarou-sanda-8506b0302)
-[![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=flat-square&logo=twitter&logoColor=white)](https://x.com/OumarouSSouley)
-[![Portfolio](https://img.shields.io/badge/Portfolio-000000?style=flat-square&logo=vercel&logoColor=white)](https://www.oumarousandasouley.vercel.app/)
-
-
-
-**Besoin d'aide ?** Ouvre une issue sur [GitHub](https://github.com/OumarouSandaSouley/Nur/issues)
+**Need help?** Open an issue on [GitHub](https://github.com/OumarouSandaSouley/Nur/issues)
